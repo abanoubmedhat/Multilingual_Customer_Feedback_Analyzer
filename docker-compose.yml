@@ -12,6 +12,19 @@ services:
     depends_on:
       - db  # This service won't start until the 'db' service is ready
 
+  # Frontend (React) dev server
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+
   # Our PostgreSQL database service
   db:
     image: postgres:14-alpine  # Use the official PostgreSQL 14 image

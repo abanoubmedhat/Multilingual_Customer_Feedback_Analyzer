@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 # Import our new modules
-from . import models, schemas
-from .database import engine, get_db
+import models, schemas
+from database import engine, get_db
 
 import google.generativeai as genai
 
@@ -56,7 +56,7 @@ async def analyze_and_store_feedback(
     """
     try:
         # 1. ANALYZE WITH GEMINI
-        model = genai.GenerativeModel('models/gemini-pro') # Use the full name from list_models.py
+        model = genai.GenerativeModel('models/gemini-2.5-pro') # Use the full name from list_models.py
         prompt = f"""
         Analyze the following customer feedback text.
         Your task is to:
@@ -67,10 +67,25 @@ async def analyze_and_store_feedback(
         """
         response = model.generate_content(prompt)
 
-        if not response.parts:
-            raise HTTPException(status_code=400, detail="AI content generation failed.")
+        if not response.parts or not response.text:
+            raise HTTPException(status_code=400, detail="AI content generation failed. Empty response from Gemini API.")
 
-        result = json.loads(response.text)
+        try:
+            # Strip markdown code blocks if present (Gemini sometimes wraps JSON in ```json ... ```)
+            text = response.text.strip()
+            if text.startswith("```"):
+                # Remove opening ```json or ``` and closing ```
+                text = text.split("```", 1)[1]  # Remove opening ```
+                if text.startswith("json"):
+                    text = text[4:].lstrip()  # Remove 'json' keyword
+                text = text.rsplit("```", 1)[0]  # Remove closing ```
+                text = text.strip()
+            
+            result = json.loads(text)
+        except json.JSONDecodeError as je:
+            print(f"Failed to parse JSON response: {response.text}")
+            raise HTTPException(status_code=400, detail=f"AI returned invalid JSON: {str(je)}")
+        
         analysis_output = schemas.TranslateOutput(**result)
 
         # 2. STORE IN DATABASE

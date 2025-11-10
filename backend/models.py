@@ -1,7 +1,7 @@
 # backend/models.py
 
 from sqlalchemy import Column, Integer, String, DateTime, func
-from .database import Base
+from database import Base
 
 class Feedback(Base):
     __tablename__ = "feedback"

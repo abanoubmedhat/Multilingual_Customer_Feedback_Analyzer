@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Our FastAPI backend service
   backend:
@@ -9,7 +7,7 @@ services:
     volumes:
       - ./backend:/app  # Mount our local 'backend' code into the container's '/app' directory
     environment:
-      - DATABASE_URL=postgresql+psycopg2://user:password@db/feedbackdb
+      - DATABASE_URL=postgresql+asyncpg://user:password@db/feedbackdb
       - GOOGLE_API_KEY=${GOOGLE_API_KEY} # Pass the API key from our .env file
     depends_on:
       - db  # This service won't start until the 'db' service is ready

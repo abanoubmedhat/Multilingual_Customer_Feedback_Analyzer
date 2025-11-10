@@ -13,6 +13,8 @@ class TranslateInput(BaseModel):
 class TranslateOutput(BaseModel):
     translated_text: str
     sentiment: str
+    language: str | None = None
+    language_confidence: float | None = None
 
 # --- Feedback Schemas ---
 
@@ -21,6 +23,9 @@ class FeedbackBase(BaseModel):
     original_text: str
     translated_text: str | None = None
     sentiment: str
+    product: str | None = None
+    language: str | None = None
+    language_confidence: float | None = None
 
 # Schema for displaying feedback (includes DB-generated fields)
 class Feedback(FeedbackBase):
@@ -29,3 +34,9 @@ class Feedback(FeedbackBase):
 
     class Config:
         from_attributes = True # Allows Pydantic to read data from ORM models
+
+
+# Schema for creating feedback (POST /api/feedback)
+class FeedbackCreate(BaseModel):
+    text: str
+    product: str | None = None

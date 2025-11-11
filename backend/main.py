@@ -6,6 +6,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -42,6 +43,18 @@ async def create_tables(retries: int = 10, base_delay: float = 1.0):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Application startup: Creating database tables...")
+    # Configure Gemini (Google) client if API key is provided. We avoid raising
+    # at import time so the app can start in non-AI dev modes and tests.
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if api_key:
+        try:
+            genai.configure(api_key=api_key)
+            print("Gemini configured.")
+        except Exception as e:
+            print(f"Failed to configure Gemini: {e}")
+    else:
+        print("WARNING: GOOGLE_API_KEY not set; Gemini calls will fail if invoked.")
+
     await create_tables()
     yield
     print("Application shutdown.")
@@ -76,11 +89,16 @@ app = FastAPI(
     lifespan=lifespan # Use the new lifespan context manager
 )
 
-# --- Configure Gemini AI ---
-api_key = os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    raise ValueError("GOOGLE_API_KEY not found. Please set it in your .env file.")
-genai.configure(api_key=api_key)
+# --- Configure CORS ---
+# Allow origins from env variable ALLOWED_ORIGINS (comma-separated) or default to localhost:3000 for dev
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- API Endpoints ---
 
@@ -213,3 +231,60 @@ async def get_stats(
     percentages = {k: (v / total * 100) if total else 0 for k, v in counts.items()}
 
     return {"total": total, "counts": counts, "percentages": percentages}
+
+
+@app.get("/health")
+def health():
+    """Liveness probe for orchestration: returns quickly if the app process is alive."""
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready(db: AsyncSession = Depends(get_db)):
+    """Readiness probe: attempt a lightweight DB query to confirm DB connectivity."""
+    try:
+        result = await db.execute(select(func.count()).select_from(models.Feedback))
+        # If the query executes, DB is ready
+        return {"ready": True}
+    except Exception as e:
+        print(f"Readiness check failed: {e}")
+        return {"ready": False}
+
+
+@app.get("/api/feedback/paginated")
+async def get_feedback_paginated(
+    product: str | None = None,
+    language: str | None = None,
+    sentiment: str | None = None,
+    skip: int = 0,
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db)
+):
+    """Return paginated feedback results along with total counts.
+
+    This endpoint is intended for frontend pagination and returns a JSON object
+    with `total`, `items`, `skip`, and `limit` fields.
+    """
+    # Build the base query for filtering
+    base = select(models.Feedback)
+    count_q = select(func.count()).select_from(models.Feedback)
+    if product:
+        base = base.where(models.Feedback.product == product)
+        count_q = count_q.where(models.Feedback.product == product)
+    if language:
+        base = base.where(models.Feedback.language == language)
+        count_q = count_q.where(models.Feedback.language == language)
+    if sentiment:
+        base = base.where(models.Feedback.sentiment == sentiment)
+        count_q = count_q.where(models.Feedback.sentiment == sentiment)
+
+    # total
+    total_res = await db.execute(count_q)
+    total = total_res.scalar() or 0
+
+    # items
+    query = base.offset(skip).limit(limit)
+    res = await db.execute(query)
+    items = res.scalars().all()
+
+    return {"total": total, "items": items, "skip": skip, "limit": limit}

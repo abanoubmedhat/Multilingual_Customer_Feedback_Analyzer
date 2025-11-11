@@ -9,7 +9,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://backend:8000',
+        // Use BACKEND_URL env var if set (useful when running vite locally).
+        // In Docker Compose the hostname `http://backend:8000` remains valid.
+        target: process.env.BACKEND_URL || 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       }

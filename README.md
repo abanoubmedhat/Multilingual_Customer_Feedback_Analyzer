@@ -16,11 +16,11 @@ Prerequisites:
 - Docker & Docker Compose
 - A Google API key with access to Gemini (set `GOOGLE_API_KEY`)
 
-1. Copy or create a root `.env` with your `GOOGLE_API_KEY`:
+1. Create a root `.env` from the example and add your `GOOGLE_API_KEY`:
 
 ```powershell
-Copy-Item .\backend\.env .\.env -Force
-# Edit .env and replace the placeholder with your real key
+Copy-Item .\.env.example .\.env -Force
+# Edit .env and set GOOGLE_API_KEY and (optionally) ALLOWED_ORIGINS
 ```
 
 2. Start the stack (from repo root):
@@ -97,13 +97,16 @@ descriptive message.
 
 ## Frontend
 
-This repo does not yet include a frontend. The intended frontend is a React
-SPA (Vite or Create React App) that provides:
-- A feedback submission form (text + optional product)
+A React + Vite frontend is included in the `frontend/` folder. It provides:
+- A feedback submission form (`/` area card)
 - A dashboard showing sentiment distribution and filters by product/language
 
-I'll add a scaffolding and docker-compose service for the frontend as the next
-step if you want.
+During development the frontend uses a Vite dev server. The Vite config will
+proxy `/api` calls to the backend. By default the proxy points to
+`http://localhost:8000` but when running inside Docker Compose the backend
+hostname (`http://backend:8000`) will be used by the container network. You can
+override the dev proxy target by setting the `BACKEND_URL` environment variable
+when running Vite locally.
 
 ---
 

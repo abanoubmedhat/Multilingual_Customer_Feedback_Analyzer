@@ -7,6 +7,10 @@ export default function Dashboard(){
   const [products, setProducts] = useState([])
   const [languages, setLanguages] = useState([])
   const [sampleFeedback, setSampleFeedback] = useState([])
+  const [feedbackPage, setFeedbackPage] = useState([])
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(5)
+  const [totalFeedback, setTotalFeedback] = useState(0)
   const [selectedProduct, setSelectedProduct] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
 
@@ -48,6 +52,25 @@ export default function Dashboard(){
     }
   }
 
+  async function loadFeedbackPage(p = 0){
+    try{
+      const params = new URLSearchParams()
+      if (selectedProduct) params.append('product', selectedProduct)
+      if (selectedLanguage) params.append('language', selectedLanguage)
+      params.append('skip', (p * pageSize).toString())
+      params.append('limit', pageSize.toString())
+      const res = await fetch('/api/feedback/paginated?' + params.toString())
+      if (!res.ok) return
+      const data = await res.json()
+      // data: { total, items }
+      setFeedbackPage(Array.isArray(data.items) ? data.items : [])
+      setTotalFeedback(data.total || 0)
+      setPage(p)
+    }catch(err){
+      console.error('Error loading feedback page:', err)
+    }
+  }
+
   async function load(){
     setLoading(true)
     setError(null)
@@ -71,6 +94,7 @@ export default function Dashboard(){
 
   useEffect(()=>{ loadFilters() }, [])
   useEffect(()=>{ load() }, [selectedProduct, selectedLanguage])
+  useEffect(()=>{ loadFeedbackPage(0) }, [selectedProduct, selectedLanguage, pageSize])
 
   const sentiments = ['positive', 'neutral', 'negative']
   const colors = ['positive', 'neutral', 'negative']
@@ -198,6 +222,25 @@ export default function Dashboard(){
           <button className="reload-btn" onClick={load} disabled={loading}>
             🔄 Refresh Stats
           </button>
+
+          <div className="recent-feedback">
+            <h3>Recent Feedback</h3>
+            {feedbackPage.length === 0 && <div>No feedback on this page.</div>}
+            <ul>
+              {feedbackPage.map(f => (
+                <li key={f.id} className="feedback-item">
+                  <div className="fb-text">{f.original_text}</div>
+                  <div className="fb-meta">{f.product || '(unspecified)'} • {f.language || 'unknown'} • {f.sentiment}</div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="pagination-controls">
+              <button onClick={()=> loadFeedbackPage(Math.max(0, page-1))} disabled={page<=0}>Prev</button>
+              <span> Page {page+1} </span>
+              <button onClick={()=> loadFeedbackPage(page+1)} disabled={(page+1)*pageSize >= totalFeedback}>Next</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

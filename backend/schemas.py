@@ -1,6 +1,7 @@
 # backend/schemas.py
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from datetime import datetime
 
 # --- Translation Schemas ---
@@ -31,9 +32,8 @@ class FeedbackBase(BaseModel):
 class Feedback(FeedbackBase):
     id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True # Allows Pydantic to read data from ORM models
+    # Pydantic v2: enable reading from ORM model attributes
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Schema for creating feedback (POST /api/feedback)

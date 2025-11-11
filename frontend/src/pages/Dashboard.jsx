@@ -4,12 +4,61 @@ export default function Dashboard(){
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [products, setProducts] = useState([])
+  const [languages, setLanguages] = useState([])
+  const [sampleFeedback, setSampleFeedback] = useState([])
+  const [selectedProduct, setSelectedProduct] = useState('')
+  const [selectedLanguage, setSelectedLanguage] = useState('')
+
+  async function loadFilters(){
+    try{
+      const res = await fetch('/api/feedback?limit=1000')
+      if (!res.ok) return
+  const data = await res.json()
+  // support multiple shapes: plain array (backend returns list),
+  // or wrapped shapes: { items: [...] } or { value: [...] }
+  const feedbackList = Array.isArray(data) ? data : data.items || data.value || data.results || []
+      // Map empty/null -> explicit "(unspecified)" so the UI
+      // shows a selectable option instead of hiding these values.
+      const productsRaw = feedbackList.map((f) => {
+        const v = (f.product || "").toString().trim();
+        return v === "" ? "(unspecified)" : v;
+      });
+      const languagesRaw = feedbackList.map((f) => {
+        const v = (f.language || "").toString().trim();
+        return v === "" ? "(unspecified)" : v;
+      });
+
+      const uniqueProducts = [...new Set(productsRaw)];
+      const uniqueLanguages = [...new Set(languagesRaw)];
+
+      // Sort alphabetically but ensure "(unspecified)" appears last.
+      const sortWithUnspecifiedLast = (a, b) => {
+        if (a === b) return 0;
+        if (a === "(unspecified)") return 1;
+        if (b === "(unspecified)") return -1;
+        return a.localeCompare(b);
+      };
+
+      setProducts(uniqueProducts.sort(sortWithUnspecifiedLast));
+      setLanguages(uniqueLanguages.sort(sortWithUnspecifiedLast));
+      setSampleFeedback(feedbackList.slice(0,6))
+    }catch(err){
+      console.error('Error loading filters:', err)
+    }
+  }
 
   async function load(){
     setLoading(true)
     setError(null)
     try{
-      const res = await fetch('/api/stats')
+      let url = '/api/stats'
+      const params = new URLSearchParams()
+      if (selectedProduct) params.append('product', selectedProduct)
+      if (selectedLanguage) params.append('language', selectedLanguage)
+      if (params.toString()) url += '?' + params.toString()
+      
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStats(data)
@@ -20,7 +69,8 @@ export default function Dashboard(){
     }
   }
 
-  useEffect(()=>{ load() }, [])
+  useEffect(()=>{ loadFilters() }, [])
+  useEffect(()=>{ load() }, [selectedProduct, selectedLanguage])
 
   const sentiments = ['positive', 'neutral', 'negative']
   const colors = ['positive', 'neutral', 'negative']
@@ -35,14 +85,76 @@ export default function Dashboard(){
       )}
 
       {stats && stats.total === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">📭</div>
-          <p>No feedback yet. Submit some feedback to see statistics!</p>
-        </div>
-      )}
 
-      {stats && stats.total > 0 && (
-        <div>
+          <div>
+            <div className="filter-section">
+              <div className="filter-group">
+                <label htmlFor="product-filter">Filter by Product:</label>
+                <select 
+                  id="product-filter"
+                  value={selectedProduct} 
+                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">All Products</option>
+                  {products.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            
+              <div className="filter-group">
+                <label htmlFor="language-filter">Filter by Language:</label>
+                <select 
+                  id="language-filter"
+                  value={selectedLanguage} 
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">All Languages</option>
+                  {languages.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {stats && stats.total === 0 && (
+              <div className="empty-state">
+                <div className="empty-state-icon">📭</div>
+                <p>No feedback yet. Submit some feedback to see statistics!</p>
+              </div>
+            )}
+            {/* Debug info removed for production UI */}
+          </div>
+        )}
+
+        {stats && stats.total > 0 && (
+          <div>
+            <div className="filter-section">
+              <div className="filter-group">
+                <label htmlFor="product-filter">Filter by Product:</label>
+                <select 
+                  id="product-filter"
+                  value={selectedProduct} 
+                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">All Products</option>
+                  {products.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            
+              <div className="filter-group">
+                <label htmlFor="language-filter">Filter by Language:</label>
+                <select 
+                  id="language-filter"
+                  value={selectedLanguage} 
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="filter-select"
+                >
+                  <option value="">All Languages</option>
+                  {languages.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-label">Total</div>

@@ -65,6 +65,42 @@ GET /api/stats
 
 ---
 
+## Admin-only operations (JWT)
+
+Admin endpoints are protected using a simple JWT-based login flow (demo only):
+
+- POST /auth/token — Use username/password to obtain a Bearer token. In this demo, the admin credentials are `admin` / `admin`.
+- Include `Authorization: Bearer <token>` when calling admin-only endpoints:
+  - GET /api/feedback
+  - GET /api/feedback/paginated
+  - GET /api/stats
+  - POST /api/products
+
+Environment:
+
+- Set `SECRET_KEY` in `.env` (see `.env.example`).
+- Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` to seed the initial admin user in the DB. You can change it later via the change-password endpoint.
+
+Example (PowerShell):
+
+```powershell
+# Get token
+$body = 'username=admin&password=admin'
+$tokenResp = Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/token -ContentType 'application/x-www-form-urlencoded' -Body $body
+$token = $tokenResp.access_token
+
+# Call admin endpoint
+Invoke-RestMethod -Method Get -Uri http://localhost:8000/api/stats -Headers @{ Authorization = "Bearer $token" }
+```
+
+Change password (PowerShell):
+
+```powershell
+$headers = @{ Authorization = "Bearer $token"; 'Content-Type' = 'application/json' }
+$body = @{ current_password = 'admin'; new_password = 'newStrongPassword123' } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/change-password -Headers $headers -Body $body
+```
+
 ## Data schema (Postgres)
 
 Table `feedback` columns:

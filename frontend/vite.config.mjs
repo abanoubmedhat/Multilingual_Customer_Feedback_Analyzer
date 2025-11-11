@@ -14,6 +14,12 @@ export default defineConfig({
         target: process.env.BACKEND_URL || 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
+      },
+      // Also proxy auth routes to the backend so login works in dev/compose
+      '/auth': {
+        target: process.env.BACKEND_URL || 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
       }
     }
   }

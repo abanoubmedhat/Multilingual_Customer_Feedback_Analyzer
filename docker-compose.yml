@@ -9,6 +9,11 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://user:password@db/feedbackdb
       - GOOGLE_API_KEY=${GOOGLE_API_KEY} # Pass the API key from our .env file
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ADMIN_USERNAME=${ADMIN_USERNAME}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_FORCE_RESET=${ADMIN_FORCE_RESET}
     depends_on:
       - db  # This service won't start until the 'db' service is ready
 

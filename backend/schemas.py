@@ -1,14 +1,16 @@
 # backend/schemas.py
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic import ConfigDict
 from datetime import datetime
+from typing import Annotated
 
 # --- Translation Schemas ---
 
 # Schema for the input to the /translate endpoint
 class TranslateInput(BaseModel):
-    text: str
+    # Enforce sane limits to prevent abuse
+    text: Annotated[str, Field(min_length=1, max_length=2000)]
 
 # Schema for the output of the /translate endpoint
 class TranslateOutput(BaseModel):
@@ -38,5 +40,28 @@ class Feedback(FeedbackBase):
 
 # Schema for creating feedback (POST /api/feedback)
 class FeedbackCreate(BaseModel):
-    text: str
-    product: str | None = None
+    # Enforce input length limits
+    text: Annotated[str, Field(min_length=1, max_length=2000)]
+    # Product is mandatory and must match an existing product name
+    product: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+# --- Product Schemas ---
+
+class ProductBase(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+class ProductCreate(ProductBase):
+    pass
+
+
+class Product(ProductBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Admin Schemas ---
+class AdminPasswordChange(BaseModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=200)]
+    new_password: Annotated[str, Field(min_length=6, max_length=200)]

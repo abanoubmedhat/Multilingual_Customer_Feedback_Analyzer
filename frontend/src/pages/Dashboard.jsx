@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function Dashboard(){
+export default function Dashboard({ token }){
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -16,7 +16,9 @@ export default function Dashboard(){
 
   async function loadFilters(){
     try{
-      const res = await fetch('/api/feedback?limit=1000')
+      const res = await fetch('/api/feedback?limit=1000', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) return
   const data = await res.json()
   // support multiple shapes: plain array (backend returns list),
@@ -59,7 +61,9 @@ export default function Dashboard(){
       if (selectedLanguage) params.append('language', selectedLanguage)
       params.append('skip', (p * pageSize).toString())
       params.append('limit', pageSize.toString())
-      const res = await fetch('/api/feedback/paginated?' + params.toString())
+      const res = await fetch('/api/feedback/paginated?' + params.toString(), {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) return
       const data = await res.json()
       // data: { total, items }
@@ -81,7 +85,9 @@ export default function Dashboard(){
       if (selectedLanguage) params.append('language', selectedLanguage)
       if (params.toString()) url += '?' + params.toString()
       
-      const res = await fetch(url)
+      const res = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStats(data)

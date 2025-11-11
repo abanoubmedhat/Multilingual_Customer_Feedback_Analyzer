@@ -114,24 +114,7 @@ async def lifespan(app: FastAPI):
                 print(f"Reset password for admin user '{admin_user}'.")
     except Exception as e:
         print(f"Admin seed error: {e}")
-    # Optional: seed products from env (comma-separated)
-    seed = os.getenv("SEED_PRODUCTS")
-    if seed:
-        names = [s.strip() for s in seed.split(",") if s.strip()]
-        if names:
-            async with AsyncSession(engine) as s:
-                for name in names:
-                    try:
-                        exists = await s.execute(select(models.Product).where(models.Product.name == name))
-                        if not exists.scalars().first():
-                            s.add(models.Product(name=name))
-                    except Exception as e:
-                        print(f"Product seed error for '{name}': {e}")
-                try:
-                    await s.commit()
-                except Exception as e:
-                    print(f"Product seed commit error: {e}")
-    # If still no products, create a default one so the dropdown is never empty
+    # If no products exist, create a default one so the dropdown is never empty
     try:
         async with AsyncSession(engine) as s:
             count_res = await s.execute(select(func.count()).select_from(models.Product))
@@ -218,7 +201,7 @@ def read_root():
 # endpoints and matches the project API specification.
 
 
-@app.get("/api/feedback", response_model=list[schemas.Feedback])
+@app.get("/api/feedback")
 async def get_all_feedback(
     product: str | None = None,
     language: str | None = None,
@@ -229,23 +212,46 @@ async def get_all_feedback(
     _: dict = Depends(get_current_admin)
 ):
     """
-    Admin-only: Retrieves feedback records from the database.
+    Admin-only: Retrieves feedback records from the database with pagination.
+    Returns both the items and total count for pagination UI.
+    
+    Query params:
+    - product: Filter by product name (optional)
+    - language: Filter by language code (optional)
+    - sentiment: Filter by sentiment (positive/neutral/negative) (optional)
+    - skip: Number of records to skip (default: 0)
+    - limit: Maximum records to return (default: 100)
+    
+    Returns: {"total": int, "items": [Feedback], "skip": int, "limit": int}
     """
-    query = select(models.Feedback)
+    # Build the base query for filtering
+    base = select(models.Feedback)
+    count_q = select(func.count()).select_from(models.Feedback)
+    
     if product:
         if product == "(unspecified)":
-            query = query.where(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
+            base = base.where(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
+            count_q = count_q.where(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
         else:
-            query = query.where(models.Feedback.product == product)
+            base = base.where(models.Feedback.product == product)
+            count_q = count_q.where(models.Feedback.product == product)
     if language:
-        query = query.where(models.Feedback.language == language)
+        base = base.where(models.Feedback.language == language)
+        count_q = count_q.where(models.Feedback.language == language)
     if sentiment:
-        query = query.where(models.Feedback.sentiment == sentiment)
+        base = base.where(models.Feedback.sentiment == sentiment)
+        count_q = count_q.where(models.Feedback.sentiment == sentiment)
 
-    query = query.offset(skip).limit(limit)
+    # Get total count
+    total_res = await db.execute(count_q)
+    total = total_res.scalar() or 0
+
+    # Get paginated items
+    query = base.offset(skip).limit(limit)
     result = await db.execute(query)
-    feedback_list = result.scalars().all()
-    return feedback_list
+    items = result.scalars().all()
+
+    return {"total": total, "items": items, "skip": skip, "limit": limit}
 
 
 def _call_gemini_analysis(text: str) -> dict:
@@ -422,67 +428,3 @@ async def get_stats(
     percentages = {k: (v / total * 100) if total else 0 for k, v in counts.items()}
 
     return {"total": total, "counts": counts, "percentages": percentages}
-
-
-@app.get("/health")
-def health():
-    """Liveness probe for orchestration: returns quickly if the app process is alive."""
-    return {"status": "ok"}
-
-
-@app.get("/ready")
-async def ready(db: AsyncSession = Depends(get_db)):
-    """Readiness probe: attempt a lightweight DB query to confirm DB connectivity."""
-    try:
-        result = await db.execute(select(func.count()).select_from(models.Feedback))
-        # If the query executes, DB is ready
-        return {"ready": True}
-    except Exception as e:
-        print(f"Readiness check failed: {e}")
-        return {"ready": False}
-
-
-@app.get("/api/feedback/paginated")
-async def get_feedback_paginated(
-    product: str | None = None,
-    language: str | None = None,
-    sentiment: str | None = None,
-    skip: int = 0,
-    limit: int = 10,
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_current_admin)
-):
-    """Return paginated feedback results along with total counts.
-
-    This endpoint is intended for frontend pagination and returns a JSON object
-    with `total`, `items`, `skip`, and `limit` fields.
-    """
-    # Build the base query for filtering
-    base = select(models.Feedback)
-    count_q = select(func.count()).select_from(models.Feedback)
-    if product:
-        if product == "(unspecified)":
-            base = base.where(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
-            count_q = count_q.where(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
-        else:
-            base = base.where(models.Feedback.product == product)
-            count_q = count_q.where(models.Feedback.product == product)
-    if language:
-        base = base.where(models.Feedback.language == language)
-        count_q = count_q.where(models.Feedback.language == language)
-    if sentiment:
-        base = base.where(models.Feedback.sentiment == sentiment)
-        count_q = count_q.where(models.Feedback.sentiment == sentiment)
-
-    # total
-    total_res = await db.execute(count_q)
-    total = total_res.scalar() or 0
-
-    # items
-    query = base.offset(skip).limit(limit)
-    res = await db.execute(query)
-    items = res.scalars().all()
-
-    return {"total": total, "items": items, "skip": skip, "limit": limit}
-
- 

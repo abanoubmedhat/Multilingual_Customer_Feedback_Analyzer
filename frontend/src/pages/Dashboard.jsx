@@ -61,7 +61,7 @@ export default function Dashboard({ token }){
       if (selectedLanguage) params.append('language', selectedLanguage)
       params.append('skip', (p * pageSize).toString())
       params.append('limit', pageSize.toString())
-      const res = await fetch('/api/feedback/paginated?' + params.toString(), {
+      const res = await fetch('/api/feedback?' + params.toString(), {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       })
       if (!res.ok) return

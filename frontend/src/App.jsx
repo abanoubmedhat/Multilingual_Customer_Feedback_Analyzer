@@ -13,10 +13,19 @@ export default function App(){
   const [productsError, setProductsError] = useState(null)
   const [productMsg, setProductMsg] = useState(null)
   const [productErr, setProductErr] = useState(null)
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState('dashboard')
+  // Login modal state
+  const [showLoginModal, setShowLoginModal] = useState(false)
 
   useEffect(() => {
     const t = localStorage.getItem('jwt')
-    if (t) setToken(t)
+    if (t) {
+      setToken(t)
+      setActiveTab('dashboard') // Default to dashboard for authenticated users
+    } else {
+      setActiveTab('submit') // Default to submit for unauthenticated users
+    }
   }, [])
 
   // Load products (used by Submit and Products manager)
@@ -40,6 +49,18 @@ export default function App(){
 
   useEffect(() => { loadProducts() }, [token])
 
+  // Close modal on Escape key
+  useEffect(() => {
+    function handleEscape(e) {
+      if (e.key === 'Escape' && showLoginModal) {
+        setShowLoginModal(false)
+        setLoginError(null)
+      }
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [showLoginModal])
+
   async function handleLogin(e){
     e.preventDefault()
     setLoginError(null)
@@ -61,6 +82,7 @@ export default function App(){
       setToken(data.access_token)
       setUsername('')
       setPassword('')
+      setShowLoginModal(false) // Close modal on success
     }catch(err){
       setLoginError(err.message)
     }
@@ -69,6 +91,7 @@ export default function App(){
   function handleLogout(){
     localStorage.removeItem('jwt')
     setToken(null)
+    setActiveTab('submit') // Return to submit tab after logout
   }
 
   async function handleAddProduct(e){
@@ -209,42 +232,85 @@ export default function App(){
 
   return (
     <div className="container">
-      <h1>📊 Feedback Analyzer</h1>
-      <div className="main">
-        <div className="card">
-          <h2>Submit Feedback</h2>
-          <Submit products={products} productsLoading={productsLoading} />
-        </div>
+      {/* Skip Navigation Link */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
+      {/* Header with Title and Login Button */}
+      <div className="app-header">
+        <h1>📊 Feedback Analyzer</h1>
+        
+        {/* Login Button for Non-Authenticated Users */}
         {!token && (
-          <div className="card">
-            <h2>Login as Admin</h2>
-            <form onSubmit={handleLogin}>
-              <div className="form-group">
-                <label htmlFor="username">Username</label>
-                <input id="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="admin" />
-              </div>
-              <div className="form-group">
-                <label htmlFor="password">Password</label>
-                <input id="password" type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="admin" />
-              </div>
-              <button type="submit">Login</button>
-              {loginError && <div className="error-message">{loginError}</div>}
-            </form>
-            <p className="hint">Admin can view stats, previous reviews, and add products.</p>
+          <button 
+            className="login-trigger-btn"
+            onClick={() => setShowLoginModal(true)}
+            aria-label="Open admin login"
+          >
+            🔐 Admin Login
+          </button>
+        )}
+      </div>
+      
+      {/* Navigation Tabs */}
+      {token && (
+        <nav className="main-nav" role="navigation" aria-label="Main navigation">
+          <button 
+            className={activeTab === 'dashboard' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveTab('dashboard')}
+            aria-current={activeTab === 'dashboard' ? 'page' : undefined}
+          >
+            📊 Dashboard
+          </button>
+          <button 
+            className={activeTab === 'submit' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveTab('submit')}
+            aria-current={activeTab === 'submit' ? 'page' : undefined}
+          >
+            ✍️ Submit Feedback
+          </button>
+          <button 
+            className={activeTab === 'settings' ? 'nav-btn active' : 'nav-btn'}
+            onClick={() => setActiveTab('settings')}
+            aria-current={activeTab === 'settings' ? 'page' : undefined}
+          >
+            ⚙️ Settings
+          </button>
+          <button 
+            onClick={handleLogout} 
+            className="nav-btn logout-btn"
+            aria-label="Logout from admin panel"
+          >
+            🚪 Logout
+          </button>
+        </nav>
+      )}
+
+      {/* Tab Content */}
+      <div id="main-content" className="tab-content" role="main">
+        {/* Submit Tab - Always visible for non-authenticated, or when selected */}
+        {(!token || activeTab === 'submit') && (
+          <div className="card submit-card">
+            <h2>✍️ Submit Feedback</h2>
+            {/* Key forces remount on auth transitions to clear internal form state */}
+            <Submit key={token ? 'auth' : 'guest'} products={products} productsLoading={productsLoading} />
           </div>
         )}
 
-        {token && (
-          <>
+        {/* Dashboard Tab - Only for authenticated users */}
+        {token && activeTab === 'dashboard' && (
+          <div className="card full-width">
+            <h2>Dashboard</h2>
+            <Dashboard token={token} />
+          </div>
+        )}
+
+        {/* Settings Tab - Only for authenticated users */}
+        {token && activeTab === 'settings' && (
+          <div className="settings-layout">
             <div className="card">
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <h2>Dashboard</h2>
-                <button onClick={handleLogout} style={{width:'auto', padding:'8px 16px', minWidth:0, maxWidth:120}}>Logout</button>
-              </div>
-              <Dashboard token={token} />
-            </div>
-            <div className="card">
-              <h2>Admin Tools</h2>
+              <h2>Manage Products</h2>
               <div className="form-group">
                 <form onSubmit={handleAddProduct}>
                   <label htmlFor="new-product">Add Product</label>
@@ -263,9 +329,71 @@ export default function App(){
               <h2>Change Password</h2>
               <ChangePassword />
             </div>
-          </>
+          </div>
         )}
       </div>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <>
+          {/* Modal Overlay */}
+          <div 
+            className="modal-overlay"
+            onClick={() => {
+              setShowLoginModal(false)
+              setLoginError(null)
+            }}
+          />
+          
+          {/* Modal Content */}
+          <div className="modal-content" role="dialog" aria-labelledby="login-modal-title" aria-modal="true">
+            <div className="modal-header">
+              <h2 id="login-modal-title">🔐 Admin Login</h2>
+              <button 
+                className="modal-close-btn"
+                onClick={() => {
+                  setShowLoginModal(false)
+                  setLoginError(null)
+                }}
+                aria-label="Close login modal"
+              >
+                ✖
+              </button>
+            </div>
+            
+            <form onSubmit={handleLogin}>
+              <div className="form-group">
+                <label htmlFor="username">Username</label>
+                <input 
+                  id="username" 
+                  value={username} 
+                  onChange={e=>setUsername(e.target.value)} 
+                  placeholder="admin"
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <input 
+                  id="password" 
+                  type="password" 
+                  value={password} 
+                  onChange={e=>setPassword(e.target.value)} 
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              <button type="submit" className="btn-primary">Login</button>
+              {loginError && <div className="error-message" role="alert">{loginError}</div>}
+            </form>
+            
+            <p className="hint" style={{marginTop: '16px', textAlign: 'center'}}>
+              Admin can view stats, manage feedback, and add products.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   )
 }

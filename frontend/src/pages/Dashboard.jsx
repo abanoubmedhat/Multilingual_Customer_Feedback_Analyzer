@@ -226,10 +226,22 @@ export default function Dashboard({ token }){
 
   return (
     <div>
+      {/* Screen reader announcements */}
+      <div 
+        role="status" 
+        aria-live="polite" 
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {loading && "Loading dashboard data"}
+        {error && `Error: ${error}`}
+        {stats && !loading && `Dashboard loaded. Total feedback: ${stats.total}`}
+      </div>
+
       {loading && <div className="loading">📊 Loading stats...</div>}
       
       {error && (
-        <div className="error-message">Error: {error}</div>
+        <div className="error-message" role="alert">Error: {error}</div>
       )}
 
       {stats && stats.total === 0 && (
@@ -237,7 +249,7 @@ export default function Dashboard({ token }){
           <div>
             <div className="filter-section">
               <div className="filter-group">
-                <label htmlFor="product-filter">Filter by Product:</label>
+                <label htmlFor="product-filter">Product:</label>
                 <select 
                   id="product-filter"
                   value={selectedProduct} 
@@ -250,7 +262,7 @@ export default function Dashboard({ token }){
               </div>
             
               <div className="filter-group">
-                <label htmlFor="language-filter">Filter by Language:</label>
+                <label htmlFor="language-filter">Language:</label>
                 <select 
                   id="language-filter"
                   value={selectedLanguage} 
@@ -261,6 +273,24 @@ export default function Dashboard({ token }){
                   {languages.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
+
+              <button 
+                className="filter-btn refresh-btn" 
+                onClick={()=>refreshAll(true)} 
+                disabled={loading}
+                title="Refresh data"
+              >
+                🔄
+              </button>
+
+              <button 
+                className="filter-btn clear-btn" 
+                onClick={()=>{setSelectedProduct(''); setSelectedLanguage('');}}
+                disabled={!selectedProduct && !selectedLanguage}
+                title="Clear all filters"
+              >
+                ✖
+              </button>
             </div>
 
             {stats && stats.total === 0 && (
@@ -277,7 +307,7 @@ export default function Dashboard({ token }){
           <div>
             <div className="filter-section">
               <div className="filter-group">
-                <label htmlFor="product-filter">Filter by Product:</label>
+                <label htmlFor="product-filter">Product:</label>
                 <select 
                   id="product-filter"
                   value={selectedProduct} 
@@ -290,7 +320,7 @@ export default function Dashboard({ token }){
               </div>
             
               <div className="filter-group">
-                <label htmlFor="language-filter">Filter by Language:</label>
+                <label htmlFor="language-filter">Language:</label>
                 <select 
                   id="language-filter"
                   value={selectedLanguage} 
@@ -301,17 +331,37 @@ export default function Dashboard({ token }){
                   {languages.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
+
+              <button 
+                className="filter-btn refresh-btn" 
+                onClick={()=>refreshAll(true)} 
+                disabled={loading}
+                title="Refresh data"
+              >
+                🔄
+              </button>
+
+              <button 
+                className="filter-btn clear-btn" 
+                onClick={()=>{setSelectedProduct(''); setSelectedLanguage('');}}
+                disabled={!selectedProduct && !selectedLanguage}
+                title="Clear all filters"
+              >
+                ✖
+              </button>
             </div>
 
           <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-label">Total</div>
+            <div className="stat-card stat-card-total">
+              <div className="stat-icon">📊</div>
               <div className="stat-value">{stats.total}</div>
+              <div className="stat-label">Total</div>
             </div>
             {sentiments.map(sentiment => (
-              <div key={sentiment} className="stat-card">
-                <div className="stat-label">{sentiment}</div>
+              <div key={sentiment} className={`stat-card stat-card-${sentiment}`}>
+                <div className="stat-icon">{emojis[sentiment]}</div>
                 <div className="stat-value">{stats.counts[sentiment] || 0}</div>
+                <div className="stat-label">{sentiment}</div>
               </div>
             ))}
           </div>
@@ -343,69 +393,73 @@ export default function Dashboard({ token }){
             })}
           </div>
 
-          <button className="reload-btn" onClick={()=>refreshAll(true)} disabled={loading}>
-            🔄 Refresh
-          </button>
-
           <div className="recent-feedback">
             <h3>Recent Feedback</h3>
             {feedbackPage.length === 0 && <div>No feedback on this page.</div>}
             <ul style={{width:'100%'}}>
               {feedbackPage.map(f => (
-                <li key={f.id} className="feedback-item" style={{width:'100%'}}>
-                  <div style={{display:'flex', alignItems:'stretch', gap:16, width:'100%'}}>
-                    <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', paddingTop:8, paddingRight:8}}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(f.id)}
-                        onChange={()=>toggleId(f.id)}
-                        style={{marginBottom:8, flexShrink:0}}
-                      />
-                    </div>
-                    <div style={{flex:1, minWidth:0, display:'flex', flexDirection:'column', justifyContent:'center', wordBreak:'break-word'}}>
-                      {f.original_text ? (
-                        <>
-                          <div className="fb-text" style={{wordWrap:'break-word', overflowWrap:'break-word', marginBottom:6}}>
-                            {showTranslated && f.translated_text ? f.translated_text : f.original_text}
-                          </div>
-                          <div className="fb-meta" style={{marginBottom:2}}>{f.product || '(unspecified)'} • {f.language || 'unknown'} • {f.sentiment}</div>
-                          {showTranslated && f.translated_text && (
-                            <div style={{marginTop:4, fontSize:12, color:'#6b7280', wordWrap:'break-word'}}>Original: {f.original_text}</div>
-                          )}
-                        </>
-                      ) : (
-                        <div style={{color:'#dc2626', fontSize:13, marginBottom:8}}>
-                          ⚠️ Feedback data missing <code>original_text</code>. Raw object:<br/>
-                          <pre style={{background:'#f3f4f6', padding:8, borderRadius:6, fontSize:12, overflowX:'auto'}}>{JSON.stringify(f, null, 2)}</pre>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{display:'flex', flexDirection:'column', justifyContent:'flex-start', alignItems:'flex-end'}}>
-                      <button
-                        style={{padding:'6px 10px', background:'#dc2626', flexShrink:0, whiteSpace:'nowrap', alignSelf:'flex-start', marginTop:2}}
-                        onClick={async()=>{ setSelectedIds([f.id]); await deleteSelected(); }}
-                      >Delete</button>
-                    </div>
+                <li key={f.id} className={`feedback-item feedback-item-${f.sentiment || 'neutral'}`}>
+                  <div className="feedback-item-header">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(f.id)}
+                      onChange={()=>toggleId(f.id)}
+                      className="feedback-checkbox"
+                    />
+                    <span className={`sentiment-badge sentiment-badge-${f.sentiment || 'neutral'}`}>
+                      {emojis[f.sentiment] || '😐'}
+                    </span>
+                    <span className="language-tag">{f.language || 'unknown'}</span>
+                    <span className="product-tag">{f.product || '(unspecified)'}</span>
+                    <button
+                      className="icon-btn delete-btn"
+                      onClick={async()=>{ setSelectedIds([f.id]); await deleteSelected(); }}
+                      title="Delete feedback"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  <div className="feedback-item-body">
+                    {f.original_text ? (
+                      <>
+                        <p className="feedback-text">
+                          {showTranslated && f.translated_text ? f.translated_text : f.original_text}
+                        </p>
+                        {showTranslated && f.translated_text && (
+                          <p className="feedback-original">
+                            <span className="original-label">Original:</span> {f.original_text}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="feedback-error">
+                        ⚠️ Feedback data missing <code>original_text</code>. Raw object:<br/>
+                        <pre>{JSON.stringify(f, null, 2)}</pre>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
             </ul>
 
             <div style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
-              <button style={{width:'auto'}} onClick={toggleAll} disabled={feedbackPage.length===0}>
+              <button className="btn-tertiary" style={{width:'auto'}} onClick={toggleAll} disabled={feedbackPage.length===0}>
                 {selectedIds.length === feedbackPage.length && feedbackPage.length>0 ? 'Unselect All' : 'Select All'}
               </button>
               <button
-                style={{width:'auto', background:'#dc2626'}}
+                className="btn-danger"
+                style={{width:'auto'}}
                 onClick={deleteSelected}
                 disabled={selectedIds.length===0}
               >Delete Selected ({selectedIds.length})</button>
               <button
-                style={{width:'auto', background:'#dc2626'}}
+                className="btn-danger"
+                style={{width:'auto'}}
                 onClick={deleteAllFiltered}
                 disabled={totalFeedback===0}
               >Delete All Filtered ({totalFeedback})</button>
               <button
+                className="btn-secondary"
                 style={{width:'auto'}}
                 onClick={()=>setShowTranslated(s=>!s)}
                 disabled={feedbackPage.length===0}
@@ -455,16 +509,16 @@ export default function Dashboard({ token }){
                   </div>
                   <div style={{marginBottom:16, fontSize:13, color:'#6b7280', textAlign:'center', wordBreak:'break-word'}}>Current filter: {confirmDelete.filter}</div>
                   <div style={{display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap'}}>
-                    <button style={{width:'auto', minWidth:80, background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center'}} onClick={confirmDelete.onConfirm}>Confirm</button>
-                    <button style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={()=>setConfirmDelete(null)}>Cancel</button>
+                    <button className="btn-danger" style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={confirmDelete.onConfirm}>Confirm</button>
+                    <button className="btn-secondary" style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={()=>setConfirmDelete(null)}>Cancel</button>
                   </div>
                 </div>
               </>
             )}
 
-            <div className="pagination-controls" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap'}}>
+            <div className="pagination-controls" role="navigation" aria-label="Feedback pagination" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap'}}>
               <div style={{display:'flex', alignItems:'center', gap:8}}>
-                <span style={{whiteSpace:'nowrap'}}>Per page:</span>
+                <label htmlFor="page-size" style={{whiteSpace:'nowrap', fontSize: '14px', margin: 0}}>Per page:</label>
                 <select
                   id="page-size"
                   className="page-size-select"
@@ -473,6 +527,7 @@ export default function Dashboard({ token }){
                     const v = parseInt(e.target.value, 10)
                     if (!Number.isNaN(v)) setPageSize(v)
                   }}
+                  aria-label="Items per page"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>
@@ -480,9 +535,21 @@ export default function Dashboard({ token }){
                   <option value={50}>50</option>
                 </select>
               </div>
-              <span>Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
-              <button onClick={()=> loadFeedbackPage(Math.max(0, page-1))} disabled={page<=0}>Prev</button>
-              <button onClick={()=> loadFeedbackPage(page+1)} disabled={(page+1)*pageSize >= totalFeedback}>Next</button>
+              <span aria-live="polite" aria-atomic="true">Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
+              <button 
+                onClick={()=> loadFeedbackPage(Math.max(0, page-1))} 
+                disabled={page<=0}
+                aria-label="Go to previous page"
+                className="btn-secondary"
+                style={{width: 'auto'}}
+              >Prev</button>
+              <button 
+                onClick={()=> loadFeedbackPage(page+1)} 
+                disabled={(page+1)*pageSize >= totalFeedback}
+                aria-label="Go to next page"
+                className="btn-secondary"
+                style={{width: 'auto'}}
+              >Next</button>
             </div>
           </div>
         </div>

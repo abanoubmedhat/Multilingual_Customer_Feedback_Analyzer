@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 
 export default function Submit({ products = [], productsLoading = false }){
   const [text, setText] = useState('')
-  const [product, setProduct] = useState('')
+  const [product, setProduct] = useState('') // empty string keeps placeholder option selected
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false) // retained for backward compatibility
   const [error, setError] = useState(null)
@@ -13,12 +13,7 @@ export default function Submit({ products = [], productsLoading = false }){
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
   const TIMEOUT_MS = 20000 // 20s timeout
 
-  // Default to first product if none selected when list is available
-  useEffect(() => {
-    if (!product && Array.isArray(products) && products.length > 0){
-      setProduct(products[0].name)
-    }
-  }, [products])
+  // Removed auto-select of first product to force explicit user choice.
 
   // Elapsed timer while a phase is active
   useEffect(() => {
@@ -71,7 +66,8 @@ export default function Submit({ products = [], productsLoading = false }){
       setPhase('saving')
       setResult(data)
       setText('')
-      setProduct(products[0]?.name || '')
+  // Reset to placeholder so user must choose again explicitly.
+  setProduct('')
       try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: data })) } catch {}
       setPhase(null)
     }catch(err){
@@ -107,6 +103,7 @@ export default function Submit({ products = [], productsLoading = false }){
 
   return (
     <form onSubmit={handleSubmit}>
+      <p className="form-subtitle">Share your experience in any language - we'll analyze it for you</p>
       {productsLoading && <div className="loading">Loading products...</div>}
       <div className="form-group">
         <label htmlFor="product">Product</label>

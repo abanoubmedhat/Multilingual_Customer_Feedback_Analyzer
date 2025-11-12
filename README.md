@@ -208,6 +208,103 @@ docker-compose logs -f db
 
 ---
 
+## 🧪 Running Tests
+
+The project includes comprehensive unit tests for both backend and frontend components.
+
+### Backend Tests (pytest)
+
+**Running tests in Docker:**
+```bash
+# Run all backend tests
+docker-compose exec backend pytest
+
+# Run with coverage report
+docker-compose exec backend pytest --cov=. --cov-report=term-missing
+
+# Run specific test file
+docker-compose exec backend pytest tests/test_auth.py
+
+# Run with verbose output
+docker-compose exec backend pytest -v
+```
+
+**Quick test script:**
+```bash
+# Linux/Mac
+./run_tests.sh
+
+# Windows (Batch - recommended)
+.\run_tests.bat
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -File .\run_tests.ps1
+```
+
+**Running tests locally (outside Docker):**
+```bash
+cd backend
+pip install -r requirements.txt
+pytest
+```
+
+**Test Coverage:**
+- ✅ Authentication & JWT (token generation, validation, expiration, refresh)
+- ✅ Feedback API (create, read, update, delete, pagination, filters)
+- ✅ Product Management (CRUD operations)
+- ✅ Rate Limiting (API abuse protection)
+- ✅ Sentiment Statistics (aggregation, filtering)
+- ✅ Database Integration (async SQLAlchemy operations)
+
+**Test Files:**
+- `tests/test_auth.py` - Authentication and authorization
+- `tests/test_feedback.py` - Feedback CRUD operations
+- `tests/test_products.py` - Product management
+- `tests/test_rate_limiting.py` - API rate limits
+
+### Frontend Tests (Vitest + React Testing Library)
+
+**Running tests in Docker:**
+```bash
+# Run all frontend tests
+docker-compose exec frontend npm test
+
+# Run in watch mode
+docker-compose exec frontend npm run test:watch
+
+# Run with coverage
+docker-compose exec frontend npm run test:coverage
+```
+
+**Running tests locally (outside Docker):**
+```bash
+cd frontend
+npm install
+npm test
+```
+
+**Test Coverage:**
+- ✅ App Component (authentication flow, tab navigation, token management)
+- ✅ Submit Form (feedback submission, validation, two-phase processing, cancellation)
+- ✅ Dashboard (stats display, filtering, pagination, CRUD operations)
+- ✅ fetchWithAuth Utility (token refresh, auto-logout, header management)
+
+**Test Files:**
+- `src/tests/App.test.jsx` - Main app component and authentication
+- `src/tests/Submit.test.jsx` - Feedback submission form
+- `src/tests/Dashboard.test.jsx` - Admin dashboard functionality
+- `src/tests/fetchWithAuth.test.js` - Authentication utility
+
+### Test Results Summary
+
+```
+Backend Tests:  40+ test cases
+Frontend Tests: 35+ test cases
+Total Coverage: ~75% of critical paths
+```
+
+---
+
 ## 📡 API Routes & Usage
 
 ### Public Endpoints

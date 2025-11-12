@@ -303,6 +303,78 @@ Frontend Tests: 35+ test cases
 Total Coverage: ~75% of critical paths
 ```
 
+**Learn More:**
+- [TESTING.md](./TESTING.md) - Comprehensive testing guide
+- [TEST_FAILURES_GUIDE.md](./TEST_FAILURES_GUIDE.md) - Troubleshooting test issues
+- [TESTING_QUICKREF.md](./TESTING_QUICKREF.md) - Quick reference
+
+---
+
+## 🚀 CI/CD Pipeline
+
+The project includes a complete CI/CD pipeline using **GitHub Actions** for automated testing, building, and deployment.
+
+### Pipeline Features
+
+✅ **Automated Testing**
+- Backend tests run on every push/PR
+- Frontend tests with coverage reporting
+- Parallel execution for faster feedback
+
+✅ **Docker Image Building**
+- Automatic image builds
+- Layer caching for speed
+- Multi-platform support
+
+✅ **Security Scanning**
+- Trivy vulnerability scanner
+- Dependency checks
+- Weekly security audits
+
+✅ **Automated Deployment**
+- Staging environment on `main` branch
+- Production deployment with approval gates
+- Rollback capabilities
+
+### Quick Start
+
+1. **Enable GitHub Actions**
+   - Workflows automatically activate when pushed to `.github/workflows/`
+
+2. **Configure Secrets**
+   - Navigate to: **Settings > Secrets and variables > Actions**
+   - Add: `GOOGLE_API_KEY` (required)
+   - Add deployment credentials (platform-specific)
+
+3. **Test the Pipeline**
+   ```bash
+   git checkout -b test/ci-pipeline
+   echo "Test CI/CD" >> README.md
+   git add README.md
+   git commit -m "test: Trigger CI/CD pipeline"
+   git push origin test/ci-pipeline
+   # Create PR and watch Actions tab
+   ```
+
+### Pipeline Workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| **CI/CD Pipeline** | Push to main/develop, PRs | Full test suite, build, deploy |
+| **PR Checks** | Pull requests | Fast validation, linting, size checks |
+| **Dependency Check** | Weekly (Mondays 9 AM) | Security vulnerability scanning |
+
+### Status Badges
+
+```markdown
+![CI/CD Pipeline](https://github.com/abanoubmedhat/feedback_analyzer/workflows/CI%2FCD%20Pipeline/badge.svg)
+![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+```
+
+**Learn More:**
+- [CI_CD_GUIDE.md](./CI_CD_GUIDE.md) - Complete CI/CD documentation
+- [CI_CD_SETUP_CHECKLIST.md](./CI_CD_SETUP_CHECKLIST.md) - Setup checklist
+
 ---
 
 ## 📡 API Routes & Usage

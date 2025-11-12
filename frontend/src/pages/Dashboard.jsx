@@ -102,9 +102,127 @@ export default function Dashboard({ token }){
   useEffect(()=>{ load() }, [selectedProduct, selectedLanguage])
   useEffect(()=>{ loadFeedbackPage(0) }, [selectedProduct, selectedLanguage, pageSize])
 
+  // Initialize page size from localStorage (if previously set)
+  useEffect(() => {
+    const saved = parseInt(localStorage.getItem('pageSize') || '', 10)
+    if ([5, 10, 20, 50].includes(saved)) {
+      setPageSize(saved)
+    }
+  }, [])
+
+  // Persist page size choice
+  useEffect(() => {
+    localStorage.setItem('pageSize', String(pageSize))
+  }, [pageSize])
+
+  // Unified refresh helper: refresh filters, stats, and the current page
+  async function refreshAll(resetToFirstPage = true){
+    // Kick off in parallel for snappier UI; load() manages its own loading state
+    const pageToLoad = resetToFirstPage ? 0 : page
+    await Promise.allSettled([
+      (async ()=>{ await loadFilters() })(),
+      (async ()=>{ await load() })(),
+      (async ()=>{ await loadFeedbackPage(pageToLoad) })(),
+    ])
+  }
+
+  // Listen for feedback creation events (from Submit form) to auto-refresh dashboard
+  useEffect(() => {
+    function onCreated(){
+      // After a new feedback arrives, reset to first page so the newest item is visible
+      refreshAll(true)
+    }
+    window.addEventListener('feedback:created', onCreated)
+    return () => window.removeEventListener('feedback:created', onCreated)
+  }, [page, pageSize, selectedProduct, selectedLanguage])
+
   const sentiments = ['positive', 'neutral', 'negative']
   const colors = ['positive', 'neutral', 'negative']
   const emojis = { positive: '😊', neutral: '😐', negative: '😞' }
+  const totalPages = Math.ceil(totalFeedback / pageSize) || 0
+  const [selectedIds, setSelectedIds] = useState([])
+  const [showTranslated, setShowTranslated] = useState(false)
+  const [bulkError, setBulkError] = useState(null)
+  const [bulkMsg, setBulkMsg] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
+
+  function toggleId(id){
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id])
+  }
+
+  function toggleAll(){
+    if (selectedIds.length === feedbackPage.length){
+      setSelectedIds([])
+    } else {
+      setSelectedIds(feedbackPage.map(f=>f.id))
+    }
+  }
+
+  async function deleteSelected(){
+    if (selectedIds.length === 0) return
+    setBulkError(null); setBulkMsg(null)
+    setConfirmDelete({
+      type: 'selected',
+      count: selectedIds.length,
+      filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+      onConfirm: async () => {
+        try {
+          if (selectedIds.length === 1){
+            const id = selectedIds[0]
+            const res = await fetch(`/api/feedback/${id}`, { method: 'DELETE', headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
+            if (!res.ok) throw new Error('Failed to delete feedback')
+            setBulkMsg('Deleted 1 feedback entry.')
+          } else {
+            const res = await fetch('/api/feedback', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+              body: JSON.stringify({ ids: selectedIds })
+            })
+            if (!res.ok) throw new Error('Bulk delete failed')
+            const data = await res.json()
+            setBulkMsg(`Deleted ${data.deleted} feedback entries.`)
+          }
+          setSelectedIds([])
+          await refreshAll(false)
+        } catch(e){
+          setBulkError(e.message)
+        } finally {
+          setConfirmDelete(null)
+        }
+      }
+    })
+  }
+
+  async function deleteAllFiltered(){
+    setBulkError(null); setBulkMsg(null)
+    setConfirmDelete({
+      type: 'all',
+      count: totalFeedback,
+      filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+      onConfirm: async () => {
+        try {
+          const params = new URLSearchParams()
+          if (selectedProduct) params.append('product', selectedProduct)
+          if (selectedLanguage) params.append('language', selectedLanguage)
+          const res = await fetch('/api/feedback/all?' + params.toString(), {
+            method: 'DELETE',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          })
+          if (!res.ok) throw new Error('Delete all filtered failed')
+          const data = await res.json()
+          setBulkMsg(`Deleted ${data.deleted} feedback entries.`)
+          setSelectedIds([])
+          // If current page is now empty, auto-jump to previous page
+          if (page > 0) setPage(page-1)
+          await refreshAll(false)
+        } catch(e){
+          setBulkError(e.message)
+        } finally {
+          setConfirmDelete(null)
+        }
+      }
+    })
+  }
 
   return (
     <div>
@@ -225,25 +343,145 @@ export default function Dashboard({ token }){
             })}
           </div>
 
-          <button className="reload-btn" onClick={load} disabled={loading}>
-            🔄 Refresh Stats
+          <button className="reload-btn" onClick={()=>refreshAll(true)} disabled={loading}>
+            🔄 Refresh
           </button>
 
           <div className="recent-feedback">
             <h3>Recent Feedback</h3>
             {feedbackPage.length === 0 && <div>No feedback on this page.</div>}
-            <ul>
+            <ul style={{width:'100%'}}>
               {feedbackPage.map(f => (
-                <li key={f.id} className="feedback-item">
-                  <div className="fb-text">{f.original_text}</div>
-                  <div className="fb-meta">{f.product || '(unspecified)'} • {f.language || 'unknown'} • {f.sentiment}</div>
+                <li key={f.id} className="feedback-item" style={{width:'100%'}}>
+                  <div style={{display:'flex', alignItems:'stretch', gap:16, width:'100%'}}>
+                    <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-start', paddingTop:8, paddingRight:8}}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(f.id)}
+                        onChange={()=>toggleId(f.id)}
+                        style={{marginBottom:8, flexShrink:0}}
+                      />
+                    </div>
+                    <div style={{flex:1, minWidth:0, display:'flex', flexDirection:'column', justifyContent:'center', wordBreak:'break-word'}}>
+                      {f.original_text ? (
+                        <>
+                          <div className="fb-text" style={{wordWrap:'break-word', overflowWrap:'break-word', marginBottom:6}}>
+                            {showTranslated && f.translated_text ? f.translated_text : f.original_text}
+                          </div>
+                          <div className="fb-meta" style={{marginBottom:2}}>{f.product || '(unspecified)'} • {f.language || 'unknown'} • {f.sentiment}</div>
+                          {showTranslated && f.translated_text && (
+                            <div style={{marginTop:4, fontSize:12, color:'#6b7280', wordWrap:'break-word'}}>Original: {f.original_text}</div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{color:'#dc2626', fontSize:13, marginBottom:8}}>
+                          ⚠️ Feedback data missing <code>original_text</code>. Raw object:<br/>
+                          <pre style={{background:'#f3f4f6', padding:8, borderRadius:6, fontSize:12, overflowX:'auto'}}>{JSON.stringify(f, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', justifyContent:'flex-start', alignItems:'flex-end'}}>
+                      <button
+                        style={{padding:'6px 10px', background:'#dc2626', flexShrink:0, whiteSpace:'nowrap', alignSelf:'flex-start', marginTop:2}}
+                        onClick={async()=>{ setSelectedIds([f.id]); await deleteSelected(); }}
+                      >Delete</button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
 
-            <div className="pagination-controls">
+            <div style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
+              <button style={{width:'auto'}} onClick={toggleAll} disabled={feedbackPage.length===0}>
+                {selectedIds.length === feedbackPage.length && feedbackPage.length>0 ? 'Unselect All' : 'Select All'}
+              </button>
+              <button
+                style={{width:'auto', background:'#dc2626'}}
+                onClick={deleteSelected}
+                disabled={selectedIds.length===0}
+              >Delete Selected ({selectedIds.length})</button>
+              <button
+                style={{width:'auto', background:'#dc2626'}}
+                onClick={deleteAllFiltered}
+                disabled={totalFeedback===0}
+              >Delete All Filtered ({totalFeedback})</button>
+              <button
+                style={{width:'auto'}}
+                onClick={()=>setShowTranslated(s=>!s)}
+                disabled={feedbackPage.length===0}
+              >{showTranslated ? 'Hide Translated' : 'Show Translated'}</button>
+              {bulkMsg && <div className="success-message" style={{margin:0}}>{bulkMsg}</div>}
+              {bulkError && <div className="error-message" style={{margin:0}}>{bulkError}</div>}
+            </div>
+
+            {confirmDelete && (
+              <>
+                <div 
+                  style={{
+                    position:'fixed',
+                    top:0,
+                    left:0,
+                    width:'100vw',
+                    height:'100vh',
+                    background:'rgba(0,0,0,0.5)',
+                    zIndex:999
+                  }}
+                  onClick={()=>setConfirmDelete(null)}
+                />
+                <div style={{
+                  position:'fixed',
+                  top:'50%',
+                  left:'50%',
+                  transform:'translate(-50%, -50%)',
+                  zIndex:1000,
+                  background:'white',
+                  borderRadius:12,
+                  boxShadow:'0 4px 24px rgba(0,0,0,0.3)',
+                  padding:'32px 24px',
+                  minWidth:280,
+                  maxWidth:'min(400px, 90vw)',
+                  width:'auto',
+                  maxHeight:'90vh',
+                  overflowY:'auto',
+                  display:'flex',
+                  flexDirection:'column',
+                  alignItems:'center'
+                }}>
+                  <h3 style={{marginBottom:16, textAlign:'center'}}>Confirm Delete</h3>
+                  <div style={{marginBottom:16, fontSize:15, textAlign:'center'}}>
+                    {confirmDelete.type === 'selected'
+                      ? `Are you sure you want to delete ${confirmDelete.count} selected review(s)?`
+                      : `Are you sure you want to delete ALL (${confirmDelete.count}) reviews matching the current filter?`}
+                  </div>
+                  <div style={{marginBottom:16, fontSize:13, color:'#6b7280', textAlign:'center', wordBreak:'break-word'}}>Current filter: {confirmDelete.filter}</div>
+                  <div style={{display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap'}}>
+                    <button style={{width:'auto', minWidth:80, background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center'}} onClick={confirmDelete.onConfirm}>Confirm</button>
+                    <button style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={()=>setConfirmDelete(null)}>Cancel</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="pagination-controls" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap'}}>
+              <div style={{display:'flex', alignItems:'center', gap:8}}>
+                <span style={{whiteSpace:'nowrap'}}>Per page:</span>
+                <select
+                  id="page-size"
+                  className="page-size-select"
+                  value={pageSize}
+                  onChange={(e)=> {
+                    const v = parseInt(e.target.value, 10)
+                    if (!Number.isNaN(v)) setPageSize(v)
+                  }}
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+              <span>Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
               <button onClick={()=> loadFeedbackPage(Math.max(0, page-1))} disabled={page<=0}>Prev</button>
-              <span> Page {page+1} </span>
               <button onClick={()=> loadFeedbackPage(page+1)} disabled={(page+1)*pageSize >= totalFeedback}>Next</button>
             </div>
           </div>

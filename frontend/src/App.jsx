@@ -239,7 +239,7 @@ export default function App(){
             <div className="card">
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <h2>Dashboard</h2>
-                <button onClick={handleLogout}>Logout</button>
+                <button onClick={handleLogout} style={{width:'auto', padding:'8px 16px', minWidth:0, maxWidth:120}}>Logout</button>
               </div>
               <Dashboard token={token} />
             </div>

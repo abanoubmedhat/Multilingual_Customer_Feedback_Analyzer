@@ -1,3 +1,123 @@
+import os
+import json
+import asyncio
+from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func, or_, and_
+
+# Import our new modules
+import models, schemas
+from database import engine, get_db
+
+import google.generativeai as genai
+from passlib.context import CryptContext
+
+# --- Auth / JWT Setup ---
+ALGORITHM = "HS256"
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    import jwt  # PyJWT
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    import jwt
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        return {"username": username, "role": role}
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+def get_current_admin(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+# --- Application Lifespan (for DB table creation) ---
+async def create_tables(retries: int = 10, base_delay: float = 1.0):
+    """Attempt to create DB tables, retrying while the DB service is starting.
+
+    SQLAlchemy's create_all will fail if Postgres isn't accepting connections yet
+    (race during container startup). Retry with exponential backoff so the
+    backend can start once the DB is ready.
+    """
+    for attempt in range(1, retries + 1):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(models.Base.metadata.create_all)
+            return
+        except Exception as e:
+            if attempt == retries:
+                raise
+            await asyncio.sleep(base_delay * attempt)
+
+# ...existing code...
+
+app = FastAPI(
+    title="Multilingual Customer Feedback Analyzer API",
+    description="Analyze, translate, and manage customer feedback across languages.",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# ...existing code...
+
+# Place the delete_all_filtered_feedback endpoint here, after app is defined
+@app.delete("/api/feedback/all", summary="Delete all feedback matching filters")
+async def delete_all_filtered_feedback(
+    product: str = None,
+    language: str = None,
+    sentiment: str = None,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    """Delete all feedback matching the current filter (admin only)."""
+    base = models.Feedback.__table__.delete()
+    conds = []
+    if product:
+        if product == "(unspecified)":
+            conds.append(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
+        else:
+            conds.append(models.Feedback.product == product)
+    if language:
+        conds.append(models.Feedback.language == language)
+    if sentiment:
+        conds.append(models.Feedback.sentiment == sentiment)
+    if conds:
+        base = base.where(and_(*conds))
+    try:
+        # Count before delete
+        count_q = select(func.count()).select_from(models.Feedback)
+        if conds:
+            count_q = count_q.where(and_(*conds))
+        result = await db.execute(count_q)
+        to_delete = result.scalar() or 0
+        await db.execute(base)
+        await db.commit()
+        return {"deleted": to_delete}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete filtered feedback: {e}")
 # backend/main.py
 
 import os
@@ -402,6 +522,48 @@ async def create_feedback(
     except Exception as e:
         print(f"An error occurred while creating feedback: {e}")
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
+
+
+@app.delete("/api/feedback/{feedback_id}")
+async def delete_feedback(
+    feedback_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    """Delete a single feedback record by ID (admin only)."""
+    item = await db.get(models.Feedback, feedback_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    try:
+        await db.delete(item)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete feedback: {e}")
+    return {"status": "deleted", "id": feedback_id}
+
+
+@app.delete("/api/feedback", summary="Bulk delete feedback entries")
+async def bulk_delete_feedback(
+    payload: schemas.FeedbackBulkDelete,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    """Delete multiple feedback records by IDs. Returns count deleted."""
+    if not payload.ids:
+        return {"deleted": 0}
+    try:
+        # Fetch existing IDs to confirm
+        existing = await db.execute(select(models.Feedback.id).where(models.Feedback.id.in_(payload.ids)))
+        existing_ids = [row[0] for row in existing.all()]
+        if not existing_ids:
+            return {"deleted": 0}
+        await db.execute(models.Feedback.__table__.delete().where(models.Feedback.id.in_(existing_ids)))
+        await db.commit()
+        return {"deleted": len(existing_ids), "ids": existing_ids}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to bulk delete feedback: {e}")
 
 
 @app.get("/api/stats")

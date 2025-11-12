@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from pydantic import ConfigDict
 from datetime import datetime
 from typing import Annotated
+from typing import List
 
 # --- Translation Schemas ---
 
@@ -44,6 +45,12 @@ class FeedbackCreate(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=2000)]
     # Product is mandatory and must match an existing product name
     product: Annotated[str, Field(min_length=1, max_length=100)]
+
+
+# --- Feedback Delete Schemas ---
+
+class FeedbackBulkDelete(BaseModel):
+    ids: List[int]
 
 
 # --- Product Schemas ---

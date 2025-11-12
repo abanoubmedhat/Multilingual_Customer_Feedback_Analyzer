@@ -6,8 +6,9 @@ export default function Submit({ products = [], productsLoading = false }){
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false) // retained for backward compatibility
   const [error, setError] = useState(null)
-  const [phase, setPhase] = useState(null) // null | 'calling-llm' | 'parsing-response' | 'saving'
+  const [phase, setPhase] = useState(null) // null | 'analyzing' | 'saving'
   const [elapsedMs, setElapsedMs] = useState(0)
+  const [analysisResult, setAnalysisResult] = useState(null) // Store analysis before saving
   const startRef = useRef(0)
   const abortRef = useRef(null)
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
@@ -31,53 +32,82 @@ export default function Submit({ products = [], productsLoading = false }){
     e.preventDefault()
     setError(null)
     setResult(null)
+    setAnalysisResult(null)
     cancelReasonRef.current = null
 
     if (!text.trim()) { setError('Please enter feedback text'); return }
     if (!product) { setError('Please select a product'); return }
 
     setLoading(true)
-    setPhase('calling-llm')
+    setPhase('analyzing')
     const controller = new AbortController()
     abortRef.current = controller
-    let timeoutTriggered = false
     const timeoutId = setTimeout(() => {
-      timeoutTriggered = true
       cancelReasonRef.current = 'timeout'
       controller.abort()
     }, TIMEOUT_MS)
+    
     try{
-      const res = await fetch('/api/feedback', {
+      // Phase 1: Analyze only (no save) using /api/translate
+      const res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, product }),
+        body: JSON.stringify({ text }),
         signal: controller.signal
       })
       clearTimeout(timeoutId)
+      
       if (controller.signal.aborted) {
-        // Fetch aborted either by user or timeout; let catch block handle messaging
         throw new DOMException('Aborted', 'AbortError')
       }
 
-      setPhase('parsing-response')
       if (!res.ok) throw new Error(`API error: ${res.status}`)
-      const data = await res.json()
+      const analysisData = await res.json()
+      
+      // Check if cancelled during analysis
+      if (controller.signal.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
 
+      // Store analysis result
+      setAnalysisResult(analysisData)
+      
+      // Phase 2: Save to database (only if not cancelled)
       setPhase('saving')
-      setResult(data)
+      const saveRes = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text, 
+          product,
+          // Pass the analysis results to avoid re-analyzing
+          language: analysisData.language,
+          translated_text: analysisData.translated_text,
+          sentiment: analysisData.sentiment
+        }),
+        signal: controller.signal
+      })
+
+      if (controller.signal.aborted) {
+        throw new DOMException('Aborted', 'AbortError')
+      }
+
+      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`)
+      const savedData = await saveRes.json()
+
+      setResult(savedData)
       setText('')
-  // Reset to placeholder so user must choose again explicitly.
-  setProduct('')
-      try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: data })) } catch {}
+      setProduct('')
+      try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: savedData })) } catch {}
       setPhase(null)
     }catch(err){
       clearTimeout(timeoutId)
       // Distinguish abort causes
-      if (err.name === 'AbortError' || err.message === 'Aborted' || err.message === 'Request cancelled') {
+      if (err.name === 'AbortError' || err.message === 'Aborted') {
         if (cancelReasonRef.current === 'timeout') {
           setError(`Analysis timed out (${(TIMEOUT_MS/1000)}s). Please retry.`)
         } else if (cancelReasonRef.current === 'user') {
-          setError('Analysis cancelled by user.')
+          setError('Analysis cancelled - no feedback was saved.')
         } else {
           setError('Analysis aborted unexpectedly.')
         }
@@ -85,6 +115,7 @@ export default function Submit({ products = [], productsLoading = false }){
         setError(err.message || 'Failed to submit feedback')
       }
       setPhase(null)
+      setAnalysisResult(null)
     }finally{
       setLoading(false)
       abortRef.current = null
@@ -97,7 +128,8 @@ export default function Submit({ products = [], productsLoading = false }){
       abortRef.current.abort()
       setPhase(null)
       setLoading(false)
-      setError('Analysis cancelled by user.')
+      setAnalysisResult(null)
+      setError('Analysis cancelled - no feedback was saved.')
     }
   }
 
@@ -134,8 +166,7 @@ export default function Submit({ products = [], productsLoading = false }){
 
       <div style={{display:'flex', gap:8}}>
         <button type="submit" disabled={loading || !text.trim()}>
-          {phase === 'calling-llm' && '🔍 Calling LLM...'}
-          {phase === 'parsing-response' && '🧪 Parsing response...'}
+          {phase === 'analyzing' && '🔍 Analyzing...'}
           {phase === 'saving' && '💾 Saving...'}
           {!phase && !loading && '🚀 Submit & Analyze'}
           {loading && !phase && '⏳ Working...'}
@@ -151,9 +182,8 @@ export default function Submit({ products = [], productsLoading = false }){
 
       {phase && (
         <div className="loading">
-          {phase === 'calling-llm' && 'Contacting Gemini model...'}
-          {phase === 'parsing-response' && 'Parsing model output...'}
-          {phase === 'saving' && 'Storing results...'}
+          {phase === 'analyzing' && 'Analyzing feedback with AI...'}
+          {phase === 'saving' && 'Saving to database...'}
           <div style={{fontSize:12, marginTop:4}}>Elapsed {(elapsedMs/1000).toFixed(1)}s</div>
         </div>
       )}

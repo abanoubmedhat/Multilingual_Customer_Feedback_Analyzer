@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, Request, status
@@ -29,23 +29,48 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     import jwt  # PyJWT
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    # Use timezone-aware UTC datetime for better compatibility
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     import jwt
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # Explicitly verify expiration and other claims
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            options={
+                "verify_signature": True,
+                "verify_exp": True,  # Explicitly verify expiration
+                "verify_nbf": True,
+                "verify_iat": True,
+                "verify_aud": False,
+                "require_exp": True  # Require exp claim to be present
+            }
+        )
         username: str = payload.get("sub")
         role: str = payload.get("role")
         if username is None or role is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        return {"username": username, "role": role}
+        return {"username": username, "role": role, "exp": payload.get("exp")}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+def should_refresh_token(exp: float) -> bool:
+    """Check if token should be refreshed (within 50% of expiration time)"""
+    if not exp:
+        return False
+    exp_datetime = datetime.fromtimestamp(exp, tz=timezone.utc)
+    now = datetime.now(timezone.utc)
+    time_until_expiry = (exp_datetime - now).total_seconds()
+    # Refresh if less than 50% of the original time remains
+    threshold = ACCESS_TOKEN_EXPIRE_MINUTES * 60 * 0.5
+    return 0 < time_until_expiry < threshold
 
 def get_current_admin(user: dict = Depends(get_current_user)):
     if user.get("role") != "admin":
@@ -69,110 +94,6 @@ async def create_tables(retries: int = 10, base_delay: float = 1.0):
             if attempt == retries:
                 raise
             await asyncio.sleep(base_delay * attempt)
-
-# ...existing code...
-
-app = FastAPI(
-    title="Multilingual Customer Feedback Analyzer API",
-    description="Analyze, translate, and manage customer feedback across languages.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# ...existing code...
-
-# Place the delete_all_filtered_feedback endpoint here, after app is defined
-@app.delete("/api/feedback/all", summary="Delete all feedback matching filters")
-async def delete_all_filtered_feedback(
-    product: str = None,
-    language: str = None,
-    sentiment: str = None,
-    db: AsyncSession = Depends(get_db),
-    _: dict = Depends(get_current_admin)
-):
-    """Delete all feedback matching the current filter (admin only)."""
-    base = models.Feedback.__table__.delete()
-    conds = []
-    if product:
-        if product == "(unspecified)":
-            conds.append(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
-        else:
-            conds.append(models.Feedback.product == product)
-    if language:
-        conds.append(models.Feedback.language == language)
-    if sentiment:
-        conds.append(models.Feedback.sentiment == sentiment)
-    if conds:
-        base = base.where(and_(*conds))
-    try:
-        # Count before delete
-        count_q = select(func.count()).select_from(models.Feedback)
-        if conds:
-            count_q = count_q.where(and_(*conds))
-        result = await db.execute(count_q)
-        to_delete = result.scalar() or 0
-        await db.execute(base)
-        await db.commit()
-        return {"deleted": to_delete}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete filtered feedback: {e}")
-# backend/main.py
-
-import os
-import json
-import asyncio
-from datetime import datetime, timedelta
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException, Depends, Request, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy import func, or_
-
-# Import our new modules
-import models, schemas
-from database import engine, get_db
-
-import google.generativeai as genai
-from passlib.context import CryptContext
-
-# --- Auth / JWT Setup ---
-ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    import jwt  # PyJWT
-    to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    import jwt
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
-        if username is None or role is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        return {"username": username, "role": role}
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-def get_current_admin(user: dict = Depends(get_current_user)):
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    return user
 
 # --- Application Lifespan (for DB table creation) ---
 async def create_tables(retries: int = 10, base_delay: float = 1.0):
@@ -287,7 +208,37 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-New-Token"],  # Allow frontend to read the new token header
 )
+
+# --- Token Refresh Middleware ---
+@app.middleware("http")
+async def refresh_token_middleware(request: Request, call_next):
+    """Middleware to automatically refresh tokens that are close to expiring"""
+    response = await call_next(request)
+    
+    # Only check for token refresh on successful authenticated requests
+    if response.status_code == 200:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                import jwt
+                # Decode without verification to check expiration time
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_signature": False})
+                exp = payload.get("exp")
+                
+                if exp and should_refresh_token(exp):
+                    # Create new token with same user data
+                    new_token = create_access_token(
+                        data={"sub": payload.get("sub"), "role": payload.get("role")}
+                    )
+                    response.headers["X-New-Token"] = new_token
+            except Exception:
+                # If token parsing fails, just continue without refreshing
+                pass
+    
+    return response
 
 # --- Simple in-memory rate limiter (dev/demo only) ---
 _rate_store: dict[tuple[str, str], list[float]] = {}
@@ -491,10 +442,13 @@ async def translate_only(feedback_input: schemas.TranslateInput, _: None = trans
 @app.post("/api/feedback", response_model=schemas.Feedback)
 async def create_feedback(
     feedback_input: schemas.FeedbackCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _: None = feedback_limiter
 ):
-    """Analyze input with Gemini and store the result along with optional product."""
+    """Analyze input with Gemini and store the result along with optional product. 
+    If analysis data (language, translated_text, sentiment) is provided, it will be used
+    instead of calling Gemini again."""
     try:
         # If product provided, ensure it exists in DB
         if feedback_input.product:
@@ -502,7 +456,28 @@ async def create_feedback(
             if not check.scalars().first():
                 raise HTTPException(status_code=400, detail="Unknown product. Please select a valid product.")
 
-        analysis = _call_gemini_analysis(feedback_input.text)
+        # Use pre-analyzed data if provided, otherwise call Gemini
+        if feedback_input.translated_text and feedback_input.sentiment:
+            # Pre-analyzed data provided, use it directly
+            analysis = {
+                "translated_text": feedback_input.translated_text,
+                "sentiment": feedback_input.sentiment,
+                "language": feedback_input.language,
+                "language_confidence": feedback_input.language_confidence
+            }
+        else:
+            # No pre-analyzed data, need to call Gemini
+            # Check if client disconnected before calling Gemini
+            if await request.is_disconnected():
+                print("Client disconnected before Gemini call, aborting...")
+                raise HTTPException(status_code=499, detail="Client disconnected")
+
+            analysis = _call_gemini_analysis(feedback_input.text)
+
+        # Check if client disconnected before saving
+        if await request.is_disconnected():
+            print("Client disconnected before saving, aborting...")
+            raise HTTPException(status_code=499, detail="Client disconnected")
 
         db_feedback = models.Feedback(
             original_text=feedback_input.text,
@@ -522,6 +497,43 @@ async def create_feedback(
     except Exception as e:
         print(f"An error occurred while creating feedback: {e}")
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
+
+
+@app.delete("/api/feedback/all", summary="Delete all feedback matching filters")
+async def delete_all_filtered_feedback(
+    product: str = None,
+    language: str = None,
+    sentiment: str = None,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    """Delete all feedback matching the current filter (admin only)."""
+    base = models.Feedback.__table__.delete()
+    conds = []
+    if product:
+        if product == "(unspecified)":
+            conds.append(or_(models.Feedback.product == '', models.Feedback.product.is_(None)))
+        else:
+            conds.append(models.Feedback.product == product)
+    if language:
+        conds.append(models.Feedback.language == language)
+    if sentiment:
+        conds.append(models.Feedback.sentiment == sentiment)
+    if conds:
+        base = base.where(and_(*conds))
+    try:
+        # Count before delete
+        count_q = select(func.count()).select_from(models.Feedback)
+        if conds:
+            count_q = count_q.where(and_(*conds))
+        result = await db.execute(count_q)
+        to_delete = result.scalar() or 0
+        await db.execute(base)
+        await db.commit()
+        return {"deleted": to_delete}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete filtered feedback: {e}")
 
 
 @app.delete("/api/feedback/{feedback_id}")

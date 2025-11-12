@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { fetchWithAuth } from '../utils/fetchWithAuth'
 
 export default function Dashboard({ token }){
   const [stats, setStats] = useState(null)
@@ -13,12 +15,15 @@ export default function Dashboard({ token }){
   const [totalFeedback, setTotalFeedback] = useState(0)
   const [selectedProduct, setSelectedProduct] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [showTranslated, setShowTranslated] = useState(false)
+  const [bulkError, setBulkError] = useState(null)
+  const [bulkMsg, setBulkMsg] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
 
   async function loadFilters(){
     try{
-      const res = await fetch('/api/feedback?limit=1000', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      })
+      const res = await fetchWithAuth('/api/feedback?limit=1000')
       if (!res.ok) return
   const data = await res.json()
   // support multiple shapes: plain array (backend returns list),
@@ -61,9 +66,7 @@ export default function Dashboard({ token }){
       if (selectedLanguage) params.append('language', selectedLanguage)
       params.append('skip', (p * pageSize).toString())
       params.append('limit', pageSize.toString())
-      const res = await fetch('/api/feedback?' + params.toString(), {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      })
+      const res = await fetchWithAuth('/api/feedback?' + params.toString())
       if (!res.ok) return
       const data = await res.json()
       // data: { total, items }
@@ -85,9 +88,7 @@ export default function Dashboard({ token }){
       if (selectedLanguage) params.append('language', selectedLanguage)
       if (params.toString()) url += '?' + params.toString()
       
-      const res = await fetch(url, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      })
+      const res = await fetchWithAuth(url)
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStats(data)
@@ -136,15 +137,34 @@ export default function Dashboard({ token }){
     return () => window.removeEventListener('feedback:created', onCreated)
   }, [page, pageSize, selectedProduct, selectedLanguage])
 
+  // Prevent body scroll when confirm modal is open
+  useEffect(() => {
+    if (confirmDelete) {
+      document.body.style.overflow = 'hidden'
+      
+      // Handle Escape key to close modal
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          if (confirmDelete.onCancel) {
+            confirmDelete.onCancel();
+          } else {
+            setConfirmDelete(null);
+          }
+        }
+      }
+      document.addEventListener('keydown', handleEscape)
+      
+      return () => {
+        document.body.style.overflow = ''
+        document.removeEventListener('keydown', handleEscape)
+      }
+    }
+  }, [confirmDelete])
+
   const sentiments = ['positive', 'neutral', 'negative']
   const colors = ['positive', 'neutral', 'negative']
   const emojis = { positive: '😊', neutral: '😐', negative: '😞' }
   const totalPages = Math.ceil(totalFeedback / pageSize) || 0
-  const [selectedIds, setSelectedIds] = useState([])
-  const [showTranslated, setShowTranslated] = useState(false)
-  const [bulkError, setBulkError] = useState(null)
-  const [bulkMsg, setBulkMsg] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
 
   function toggleId(id){
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id])
@@ -161,66 +181,114 @@ export default function Dashboard({ token }){
   async function deleteSelected(){
     if (selectedIds.length === 0) return
     setBulkError(null); setBulkMsg(null)
-    setConfirmDelete({
-      type: 'selected',
-      count: selectedIds.length,
-      filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
-      onConfirm: async () => {
-        try {
-          if (selectedIds.length === 1){
-            const id = selectedIds[0]
-            const res = await fetch(`/api/feedback/${id}`, { method: 'DELETE', headers: token ? { 'Authorization': `Bearer ${token}` } : {} })
-            if (!res.ok) throw new Error('Failed to delete feedback')
-            setBulkMsg('Deleted 1 feedback entry.')
-          } else {
-            const res = await fetch('/api/feedback', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-              body: JSON.stringify({ ids: selectedIds })
-            })
-            if (!res.ok) throw new Error('Bulk delete failed')
-            const data = await res.json()
-            setBulkMsg(`Deleted ${data.deleted} feedback entries.`)
+    
+    // Create a promise that resolves when user confirms or rejects when cancelled
+    return new Promise((resolve, reject) => {
+      setConfirmDelete({
+        type: 'selected',
+        count: selectedIds.length,
+        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+        onConfirm: async () => {
+          try {
+            if (selectedIds.length === 1){
+              const id = selectedIds[0]
+              const res = await fetchWithAuth(`/api/feedback/${id}`, { method: 'DELETE' })
+              if (!res.ok) throw new Error('Failed to delete feedback')
+              setBulkMsg('Deleted 1 feedback entry.')
+            } else {
+              const res = await fetchWithAuth('/api/feedback', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: selectedIds })
+              })
+              if (!res.ok) {
+                let detail = 'Bulk delete failed'
+                try {
+                  const errorData = await res.json()
+                  if (typeof errorData.detail === 'string') {
+                    detail = errorData.detail
+                  } else if (typeof errorData.detail === 'object') {
+                    detail = JSON.stringify(errorData.detail)
+                  }
+                } catch {}
+                throw new Error(detail)
+              }
+              const data = await res.json()
+              const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
+              setBulkMsg(`Deleted ${deletedCount} feedback entries.`)
+            }
+            setSelectedIds([])
+            await refreshAll(false)
+            resolve() // Resolve the promise on success
+          } catch(e){
+            setBulkError(e.message)
+            reject(e) // Reject on error
+          } finally {
+            setConfirmDelete(null)
           }
-          setSelectedIds([])
-          await refreshAll(false)
-        } catch(e){
-          setBulkError(e.message)
-        } finally {
+        },
+        onCancel: () => {
           setConfirmDelete(null)
+          reject(new Error('Cancelled by user')) // Reject when cancelled
         }
-      }
+      })
     })
   }
 
   async function deleteAllFiltered(){
     setBulkError(null); setBulkMsg(null)
-    setConfirmDelete({
-      type: 'all',
-      count: totalFeedback,
-      filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
-      onConfirm: async () => {
-        try {
-          const params = new URLSearchParams()
-          if (selectedProduct) params.append('product', selectedProduct)
-          if (selectedLanguage) params.append('language', selectedLanguage)
-          const res = await fetch('/api/feedback/all?' + params.toString(), {
-            method: 'DELETE',
-            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-          })
-          if (!res.ok) throw new Error('Delete all filtered failed')
-          const data = await res.json()
-          setBulkMsg(`Deleted ${data.deleted} feedback entries.`)
-          setSelectedIds([])
-          // If current page is now empty, auto-jump to previous page
-          if (page > 0) setPage(page-1)
-          await refreshAll(false)
-        } catch(e){
-          setBulkError(e.message)
-        } finally {
+    
+    // Create a promise that resolves when user confirms or rejects when cancelled
+    return new Promise((resolve, reject) => {
+      setConfirmDelete({
+        type: 'all',
+        count: totalFeedback,
+        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+        onConfirm: async () => {
+          try {
+            const params = new URLSearchParams()
+            if (selectedProduct) params.append('product', selectedProduct)
+            if (selectedLanguage) params.append('language', selectedLanguage)
+            const res = await fetchWithAuth('/api/feedback/all?' + params.toString(), {
+              method: 'DELETE'
+            })
+            if (!res.ok) {
+              let detail = 'Delete all filtered failed'
+              try {
+                const errorData = await res.json()
+                // Handle both string and object detail formats
+                if (typeof errorData.detail === 'string') {
+                  detail = errorData.detail
+                } else if (typeof errorData.detail === 'object') {
+                  detail = JSON.stringify(errorData.detail)
+                }
+              } catch {}
+              throw new Error(detail)
+            }
+            const data = await res.json()
+            const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
+            setBulkMsg(`Deleted ${deletedCount} feedback entries.`)
+            setSelectedIds([])
+            // Clear filters to show all remaining feedback
+            setSelectedProduct('')
+            setSelectedLanguage('')
+            // Reset to first page
+            setPage(0)
+            // Refresh data with cleared filters
+            await refreshAll(true)
+            resolve() // Resolve the promise on success
+          } catch(e){
+            setBulkError(e.message)
+            reject(e) // Reject on error
+          } finally {
+            setConfirmDelete(null)
+          }
+        },
+        onCancel: () => {
           setConfirmDelete(null)
+          reject(new Error('Cancelled by user')) // Reject when cancelled
         }
-      }
+      })
     })
   }
 
@@ -351,51 +419,119 @@ export default function Dashboard({ token }){
               </button>
             </div>
 
-          <div className="stats-grid">
-            <div className="stat-card stat-card-total">
-              <div className="stat-icon">📊</div>
-              <div className="stat-value">{stats.total}</div>
-              <div className="stat-label">Total</div>
+          {/* Sentiment Overview Section */}
+          <div className="dashboard-section">
+            <div className="section-header">
+              <h3 className="section-title">
+                <span className="section-icon">📈</span>
+                Sentiment Overview
+              </h3>
+              <p className="section-subtitle">Quick snapshot of feedback sentiment distribution</p>
             </div>
-            {sentiments.map(sentiment => (
-              <div key={sentiment} className={`stat-card stat-card-${sentiment}`}>
-                <div className="stat-icon">{emojis[sentiment]}</div>
-                <div className="stat-value">{stats.counts[sentiment] || 0}</div>
-                <div className="stat-label">{sentiment}</div>
+            
+            <div className="stats-grid">
+              <div className="stat-card stat-card-total">
+                <div className="stat-icon">📊</div>
+                <div className="stat-value">{stats.total}</div>
+                <div className="stat-label">Total</div>
               </div>
-            ))}
-          </div>
-
-          <div className="sentiment-chart">
-            {sentiments.map(sentiment => {
-              const count = stats.counts[sentiment] || 0
-              const percentage = stats.percentages[sentiment] || 0
-              return (
-                <div key={sentiment} className="sentiment-bar">
-                  <div className="bar-label">
-                    {emojis[sentiment]} {sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
-                  </div>
-                  <div className="bar-container">
-                    {count > 0 && (
-                      <div 
-                        className={`bar-fill ${sentiment}`}
-                        style={{ width: `${percentage}%` }}
-                      >
-                        {percentage > 10 ? `${Math.round(percentage)}%` : ''}
-                      </div>
-                    )}
-                  </div>
-                  <div className="bar-percentage">
-                    {Math.round(percentage)}% ({count})
-                  </div>
+              {sentiments.map(sentiment => (
+                <div key={sentiment} className={`stat-card stat-card-${sentiment}`}>
+                  <div className="stat-icon">{emojis[sentiment]}</div>
+                  <div className="stat-value">{stats.counts[sentiment] || 0}</div>
+                  <div className="stat-label">{sentiment}</div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
 
-          <div className="recent-feedback">
-            <h3>Recent Feedback</h3>
-            {feedbackPage.length === 0 && <div>No feedback on this page.</div>}
+          {/* Distribution Chart Section */}
+          <div className="dashboard-section">
+            <div className="section-header">
+              <h3 className="section-title">
+                <span className="section-icon">🥧</span>
+                Distribution Analysis
+              </h3>
+              <p className="section-subtitle">Visual breakdown of sentiment proportions</p>
+            </div>
+            
+            <div className="sentiment-chart">
+            <div className="pie-chart-container">
+              <svg viewBox="0 0 200 200" className="pie-chart">
+                {(() => {
+                  let cumulativePercent = 0
+                  const colors = {
+                    positive: '#10b981',
+                    neutral: '#f59e0b',
+                    negative: '#ef4444'
+                  }
+                  
+                  return sentiments.map(sentiment => {
+                    const percentage = stats.percentages[sentiment] || 0
+                    if (percentage === 0) return null
+                    
+                    const startAngle = (cumulativePercent / 100) * 360
+                    const endAngle = ((cumulativePercent + percentage) / 100) * 360
+                    cumulativePercent += percentage
+                    
+                    // Convert angles to radians
+                    const startRad = (startAngle - 90) * Math.PI / 180
+                    const endRad = (endAngle - 90) * Math.PI / 180
+                    
+                    // Calculate arc path
+                    const x1 = 100 + 90 * Math.cos(startRad)
+                    const y1 = 100 + 90 * Math.sin(startRad)
+                    const x2 = 100 + 90 * Math.cos(endRad)
+                    const y2 = 100 + 90 * Math.sin(endRad)
+                    
+                    const largeArcFlag = percentage > 50 ? 1 : 0
+                    
+                    return (
+                      <g key={sentiment}>
+                        <path
+                          d={`M 100 100 L ${x1} ${y1} A 90 90 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+                          fill={colors[sentiment]}
+                          stroke="white"
+                          strokeWidth="2"
+                          className="pie-slice"
+                        />
+                      </g>
+                    )
+                  })
+                })()}
+              </svg>
+              <div className="pie-legend">
+                {sentiments.map(sentiment => {
+                  const count = stats.counts[sentiment] || 0
+                  const percentage = stats.percentages[sentiment] || 0
+                  if (count === 0) return null
+                  return (
+                    <div key={sentiment} className="legend-item">
+                      <div className={`legend-color legend-color-${sentiment}`}></div>
+                      <div className="legend-text">
+                        <span className="legend-emoji">{emojis[sentiment]}</span>
+                        <span className="legend-label">{sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}</span>
+                        <span className="legend-value">{Math.round(percentage)}% ({count})</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Feedback Section */}
+          <div className="dashboard-section">
+            <div className="section-header">
+              <h3 className="section-title">
+                <span className="section-icon">💬</span>
+                Recent Feedback
+              </h3>
+              <p className="section-subtitle">Latest customer feedback entries</p>
+            </div>
+            
+            <div className="recent-feedback">
+            {feedbackPage.length === 0 && <div className="empty-feedback-message">No feedback on this page.</div>}
             <ul style={{width:'100%'}}>
               {feedbackPage.map(f => (
                 <li key={f.id} className={`feedback-item feedback-item-${f.sentiment || 'neutral'}`}>
@@ -413,7 +549,15 @@ export default function Dashboard({ token }){
                     <span className="product-tag">{f.product || '(unspecified)'}</span>
                     <button
                       className="icon-btn delete-btn"
-                      onClick={async()=>{ setSelectedIds([f.id]); await deleteSelected(); }}
+                      onClick={async()=>{ 
+                        setSelectedIds([f.id]); 
+                        try {
+                          await deleteSelected();
+                        } catch(err) {
+                          // User cancelled or error occurred - do nothing
+                          console.log('Delete cancelled or failed:', err.message);
+                        }
+                      }}
                       title="Delete feedback"
                     >
                       🗑️
@@ -468,52 +612,46 @@ export default function Dashboard({ token }){
               {bulkError && <div className="error-message" style={{margin:0}}>{bulkError}</div>}
             </div>
 
-            {confirmDelete && (
-              <>
-                <div 
-                  style={{
-                    position:'fixed',
-                    top:0,
-                    left:0,
-                    width:'100vw',
-                    height:'100vh',
-                    background:'rgba(0,0,0,0.5)',
-                    zIndex:999
-                  }}
-                  onClick={()=>setConfirmDelete(null)}
-                />
-                <div style={{
-                  position:'fixed',
-                  top:'50%',
-                  left:'50%',
-                  transform:'translate(-50%, -50%)',
-                  zIndex:1000,
-                  background:'white',
-                  borderRadius:12,
-                  boxShadow:'0 4px 24px rgba(0,0,0,0.3)',
-                  padding:'32px 24px',
-                  minWidth:280,
-                  maxWidth:'min(400px, 90vw)',
-                  width:'auto',
-                  maxHeight:'90vh',
-                  overflowY:'auto',
-                  display:'flex',
-                  flexDirection:'column',
-                  alignItems:'center'
-                }}>
-                  <h3 style={{marginBottom:16, textAlign:'center'}}>Confirm Delete</h3>
-                  <div style={{marginBottom:16, fontSize:15, textAlign:'center'}}>
+            {confirmDelete && createPortal(
+              <div 
+                className="confirm-modal-overlay"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    if (confirmDelete.onCancel) {
+                      confirmDelete.onCancel();
+                    } else {
+                      setConfirmDelete(null);
+                    }
+                  }
+                }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="confirm-delete-title"
+              >
+                <div className="confirm-modal">
+                  <h3 id="confirm-delete-title">Confirm Delete</h3>
+                  <div className="confirm-modal-message">
                     {confirmDelete.type === 'selected'
                       ? `Are you sure you want to delete ${confirmDelete.count} selected review(s)?`
                       : `Are you sure you want to delete ALL (${confirmDelete.count}) reviews matching the current filter?`}
                   </div>
-                  <div style={{marginBottom:16, fontSize:13, color:'#6b7280', textAlign:'center', wordBreak:'break-word'}}>Current filter: {confirmDelete.filter}</div>
-                  <div style={{display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap'}}>
-                    <button className="btn-danger" style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={confirmDelete.onConfirm}>Confirm</button>
-                    <button className="btn-secondary" style={{width:'auto', minWidth:80, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={()=>setConfirmDelete(null)}>Cancel</button>
+                  <div className="confirm-modal-filter">Current filter: {confirmDelete.filter}</div>
+                  <div className="confirm-modal-actions">
+                    <button className="btn-danger" onClick={confirmDelete.onConfirm}>Confirm</button>
+                    <button 
+                      className="btn-secondary" 
+                      onClick={() => {
+                        if (confirmDelete.onCancel) {
+                          confirmDelete.onCancel();
+                        } else {
+                          setConfirmDelete(null);
+                        }
+                      }}
+                    >Cancel</button>
                   </div>
                 </div>
-              </>
+              </div>,
+              document.body
             )}
 
             <div className="pagination-controls" role="navigation" aria-label="Feedback pagination" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap'}}>
@@ -551,6 +689,8 @@ export default function Dashboard({ token }){
                 style={{width: 'auto'}}
               >Next</button>
             </div>
+          </div>
+          </div>
           </div>
         </div>
       )}

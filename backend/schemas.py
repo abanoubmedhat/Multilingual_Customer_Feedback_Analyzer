@@ -45,6 +45,11 @@ class FeedbackCreate(BaseModel):
     text: Annotated[str, Field(min_length=1, max_length=2000)]
     # Product is mandatory and must match an existing product name
     product: Annotated[str, Field(min_length=1, max_length=100)]
+    # Optional: Pre-analyzed data to skip re-analysis
+    language: str | None = None
+    translated_text: str | None = None
+    sentiment: str | None = None
+    language_confidence: float | None = None
 
 
 # --- Feedback Delete Schemas ---

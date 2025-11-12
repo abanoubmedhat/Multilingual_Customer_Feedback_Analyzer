@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Submit from './pages/Submit'
 import Dashboard from './pages/Dashboard'
+import { fetchWithAuth } from './utils/fetchWithAuth'
 
 export default function App(){
   const [token, setToken] = useState(null)
@@ -17,6 +18,8 @@ export default function App(){
   const [activeTab, setActiveTab] = useState('dashboard')
   // Login modal state
   const [showLoginModal, setShowLoginModal] = useState(false)
+  // Session expiry notification
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState(null)
 
   useEffect(() => {
     const t = localStorage.getItem('jwt')
@@ -28,14 +31,80 @@ export default function App(){
     }
   }, [])
 
+  // Listen for automatic logout events (token expired)
+  useEffect(() => {
+    function handleAutoLogout(e) {
+      console.log('🔔 Auto logout event received:', e.detail);
+      localStorage.removeItem('jwt')
+      setToken(null)
+      setActiveTab('submit')
+      setSessionExpiredMsg('Your session has expired. Please log in again.')
+      // Clear message after 5 seconds
+      setTimeout(() => setSessionExpiredMsg(null), 5000)
+    }
+
+    function handleTokenRefresh(e) {
+      console.log('🔔 Token refresh event received');
+      // Update local token state when token is refreshed
+      setToken(e.detail.token)
+    }
+
+    window.addEventListener('auth:logout', handleAutoLogout)
+    window.addEventListener('token:refreshed', handleTokenRefresh)
+
+    return () => {
+      window.removeEventListener('auth:logout', handleAutoLogout)
+      window.removeEventListener('token:refreshed', handleTokenRefresh)
+    }
+  }, [])
+
+  // Proactive session expiration monitoring
+  useEffect(() => {
+    if (!token) return;
+
+    // Decode JWT to get expiration time
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expTime = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      const timeUntilExpiry = expTime - now;
+
+      console.log(`⏰ Session will expire in ${Math.round(timeUntilExpiry / 1000)} seconds`);
+
+      if (timeUntilExpiry <= 0) {
+        // Token already expired
+        console.log('⚠️ Token already expired, logging out immediately');
+        localStorage.removeItem('jwt');
+        setToken(null);
+        setActiveTab('submit');
+        setSessionExpiredMsg('Your session has expired. Please log in again.');
+        setTimeout(() => setSessionExpiredMsg(null), 5000);
+        return;
+      }
+
+      // Set timer to logout 1 second before actual expiration
+      const logoutTime = Math.max(0, timeUntilExpiry - 1000);
+      const timerId = setTimeout(() => {
+        console.log('⏰ Session expired - proactive logout');
+        localStorage.removeItem('jwt');
+        setToken(null);
+        setActiveTab('submit');
+        setSessionExpiredMsg('Your session has expired. Please log in again.');
+        setTimeout(() => setSessionExpiredMsg(null), 5000);
+      }, logoutTime);
+
+      return () => clearTimeout(timerId);
+    } catch (err) {
+      console.error('Failed to decode token:', err);
+    }
+  }, [token])
+
   // Load products (used by Submit and Products manager)
   async function loadProducts(){
     setProductsLoading(true)
     setProductsError(null)
     try{
-      const res = await fetch('/api/products', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      })
+      const res = await fetchWithAuth('/api/products')
       if (!res.ok) throw new Error('Failed to load products')
       const data = await res.json()
       setProducts(Array.isArray(data) ? data : [])
@@ -101,11 +170,10 @@ export default function App(){
     if (!name) return
     try{
       setProductMsg(null); setProductErr(null)
-      const res = await fetch('/api/products', {
+      const res = await fetchWithAuth('/api/products', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ name })
       })
@@ -133,9 +201,8 @@ export default function App(){
     async function remove(id){
       try{
         setProductMsg(null); setProductErr(null)
-        const res = await fetch(`/api/products/${id}`, {
-          method: 'DELETE',
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        const res = await fetchWithAuth(`/api/products/${id}`, {
+          method: 'DELETE'
         })
         if (!res.ok){
           let detail = 'Delete failed'
@@ -188,11 +255,10 @@ export default function App(){
         return
       }
       try{
-        const res = await fetch('/auth/change-password', {
+        const res = await fetchWithAuth('/auth/change-password', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
         })
@@ -245,13 +311,23 @@ export default function App(){
         {!token && (
           <button 
             className="login-trigger-btn"
-            onClick={() => setShowLoginModal(true)}
+            onClick={() => {
+              setShowLoginModal(true)
+              setSessionExpiredMsg(null) // Clear expired message when opening login
+            }}
             aria-label="Open admin login"
           >
             🔐 Admin Login
           </button>
         )}
       </div>
+
+      {/* Session Expired Message */}
+      {sessionExpiredMsg && (
+        <div className="error-message" style={{marginBottom: '20px', textAlign: 'center'}}>
+          ⚠️ {sessionExpiredMsg}
+        </div>
+      )}
       
       {/* Navigation Tabs */}
       {token && (

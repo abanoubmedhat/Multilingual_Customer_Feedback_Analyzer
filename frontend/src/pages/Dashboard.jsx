@@ -470,6 +470,23 @@ export default function Dashboard({ token }){
                     const percentage = stats.percentages[sentiment] || 0
                     if (percentage === 0) return null
                     
+                    // Special case: if 100%, draw a full circle instead of an arc
+                    if (percentage >= 99.9) {
+                      return (
+                        <g key={sentiment}>
+                          <circle
+                            cx="100"
+                            cy="100"
+                            r="90"
+                            fill={colors[sentiment]}
+                            stroke="white"
+                            strokeWidth="2"
+                            className="pie-slice"
+                          />
+                        </g>
+                      )
+                    }
+                    
                     const startAngle = (cumulativePercent / 100) * 360
                     const endAngle = ((cumulativePercent + percentage) / 100) * 360
                     cumulativePercent += percentage

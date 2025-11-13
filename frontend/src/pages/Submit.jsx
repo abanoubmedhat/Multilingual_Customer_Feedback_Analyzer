@@ -9,10 +9,11 @@ export default function Submit({ products = [], productsLoading = false }){
   const [phase, setPhase] = useState(null) // null | 'analyzing' | 'saving'
   const [elapsedMs, setElapsedMs] = useState(0)
   const [analysisResult, setAnalysisResult] = useState(null) // Store analysis before saving
+  const [completedSteps, setCompletedSteps] = useState([]) // Track completed steps
   const startRef = useRef(0)
   const abortRef = useRef(null)
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
-  const TIMEOUT_MS = 20000 // 20s timeout
+  const TIMEOUT_MS = 60000 // 60s timeout (generous for slow API responses)
 
   // Removed auto-select of first product to force explicit user choice.
 
@@ -23,7 +24,7 @@ export default function Submit({ products = [], productsLoading = false }){
       setElapsedMs(0)
       const id = setInterval(() => {
         setElapsedMs(Date.now() - startRef.current)
-      }, 500)
+      }, 100) // More frequent updates for smoother countdown
       return () => clearInterval(id)
     }
   }, [phase])
@@ -33,6 +34,7 @@ export default function Submit({ products = [], productsLoading = false }){
     setError(null)
     setResult(null)
     setAnalysisResult(null)
+    setCompletedSteps([])
     cancelReasonRef.current = null
 
     if (!text.trim()) { setError('Please enter feedback text'); return }
@@ -73,8 +75,9 @@ export default function Submit({ products = [], productsLoading = false }){
         throw new DOMException('Aborted', 'AbortError')
       }
 
-      // Store analysis result
+      // Store analysis result and mark step as completed
       setAnalysisResult(analysisData)
+      setCompletedSteps(['analyzing'])
       
       // Phase 2: Save to database (only if not cancelled)
       setPhase('saving')
@@ -104,6 +107,7 @@ export default function Submit({ products = [], productsLoading = false }){
       const savedData = await saveRes.json()
 
       setResult(savedData)
+      setCompletedSteps(['analyzing', 'saving'])
       setText('')
       setProduct('')
       try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: savedData })) } catch {}
@@ -137,9 +141,13 @@ export default function Submit({ products = [], productsLoading = false }){
       setPhase(null)
       setLoading(false)
       setAnalysisResult(null)
+      setCompletedSteps([])
       setError('Analysis cancelled - no feedback was saved.')
     }
   }
+
+  // Show "taking longer" message only in the last 20 seconds before timeout
+  const showSlowWarning = elapsedMs > (TIMEOUT_MS - 20000) // Last 20 seconds
 
   return (
     <form onSubmit={handleSubmit}>
@@ -189,10 +197,53 @@ export default function Submit({ products = [], productsLoading = false }){
       {error && (<div className="error-message">{error}</div>)}
 
       {phase && (
-        <div className="loading">
-          {phase === 'analyzing' && 'Analyzing feedback with AI...'}
-          {phase === 'saving' && 'Saving to database...'}
-          <div style={{fontSize:12, marginTop:4}}>Elapsed {(elapsedMs/1000).toFixed(1)}s</div>
+        <div className="progress-tracker">
+          <div className="progress-step-item">
+            <div className={`progress-step-indicator ${
+              completedSteps.includes('analyzing') ? 'completed' : 
+              phase === 'analyzing' ? 'active' : 'pending'
+            }`}>
+              {completedSteps.includes('analyzing') ? '✓' : '1'}
+            </div>
+            <div className="progress-step-content">
+              <div className="progress-step-title">
+                {completedSteps.includes('analyzing') ? 'Analysis Complete' : 'Analyzing Feedback'}
+              </div>
+              <div className="progress-step-subtitle">
+                {completedSteps.includes('analyzing') 
+                  ? 'Language detected and sentiment analyzed' 
+                  : 'Detecting language and analyzing sentiment...'}
+              </div>
+            </div>
+          </div>
+          
+          <div className="progress-step-item">
+            <div className={`progress-step-indicator ${
+              completedSteps.includes('saving') ? 'completed' : 
+              phase === 'saving' ? 'active' : 'pending'
+            }`}>
+              {completedSteps.includes('saving') ? '✓' : '2'}
+            </div>
+            <div className="progress-step-content">
+              <div className="progress-step-title">
+                {completedSteps.includes('saving') ? 'Feedback Saved' : 'Saving Feedback'}
+              </div>
+              <div className="progress-step-subtitle">
+                {completedSteps.includes('saving') 
+                  ? 'Feedback stored successfully' 
+                  : 'Storing feedback in database...'}
+              </div>
+            </div>
+          </div>
+
+          {showSlowWarning && (
+            <div className="progress-notice">
+              <span className="notice-icon">⏳</span>
+              <span className="notice-text">
+                This is taking longer than usual. The AI model may be experiencing high traffic or processing complex content. Please wait...
+              </span>
+            </div>
+          )}
         </div>
       )}
 

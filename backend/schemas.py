@@ -77,3 +77,18 @@ class Product(ProductBase):
 class AdminPasswordChange(BaseModel):
     current_password: Annotated[str, Field(min_length=1, max_length=200)]
     new_password: Annotated[str, Field(min_length=6, max_length=200)]
+
+
+# --- Settings Schemas ---
+class GeminiModel(BaseModel):
+    name: str
+    display_name: str
+    description: str | None = None
+
+
+class ModelSetting(BaseModel):
+    current_model: str
+
+
+class ModelSettingUpdate(BaseModel):
+    model_name: str

@@ -26,6 +26,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# Cache for Gemini models list (to avoid repeatedly querying the API)
+_gemini_models_cache = None
+_gemini_models_cache_time = None
+MODELS_CACHE_TTL = 3600  # Cache for 1 hour
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     import jwt  # PyJWT
     to_encode = data.copy()
@@ -166,6 +171,20 @@ async def lifespan(app: FastAPI):
                 print("Seeded default product 'General'.")
     except Exception as e:
         print(f"Default product seed error: {e}")
+    
+    # Initialize default Gemini model setting if not exists
+    try:
+        async with AsyncSession(engine) as s:
+            res = await s.execute(select(models.Settings).where(models.Settings.key == "gemini_model"))
+            setting = res.scalars().first()
+            if not setting:
+                # Default to gemini-1.5-flash (better free tier quota)
+                s.add(models.Settings(key="gemini_model", value="models/gemini-1.5-flash"))
+                await s.commit()
+                print("Seeded default Gemini model setting: gemini-1.5-flash")
+    except Exception as e:
+        print(f"Gemini model setting seed error: {e}")
+    
     yield
     print("Application shutdown.")
 
@@ -325,42 +344,78 @@ async def get_all_feedback(
     return {"total": total, "items": items, "skip": skip, "limit": limit}
 
 
-def _call_gemini_analysis(text: str) -> dict:
+async def _get_current_gemini_model(db: AsyncSession) -> str:
+    """Get the current Gemini model from settings, with fallback to default."""
+    try:
+        res = await db.execute(select(models.Settings).where(models.Settings.key == "gemini_model"))
+        setting = res.scalars().first()
+        if setting:
+            return setting.value
+    except Exception as e:
+        print(f"Error fetching Gemini model setting: {e}")
+    # Fallback to default
+    return "models/gemini-1.5-flash"
+
+
+def _call_gemini_analysis(text: str, model_name: str = "models/gemini-1.5-flash") -> dict:
     """Call Gemini model synchronously and return a dict with keys:
     translated_text, sentiment, language (ISO code), language_confidence (optional)
     This wraps the previous parsing logic into one place.
     """
-    model = genai.GenerativeModel('models/gemini-2.5-pro')
-    prompt = f'''
-    Analyze the following customer feedback text.
-    Your task is to:
-    1. Detect the language of the input and return it as an ISO 639-1 code in the key "language".
-    2. Translate the text into English and return it in "translated_text".
-    3. Classify the sentiment as one of: 'positive', 'negative', or 'neutral' and return it in "sentiment".
-    4. Optionally return a numeric confidence for language detection as "language_confidence".
-    Provide the output ONLY in a valid JSON format with the keys: "translated_text", "sentiment", "language", and "language_confidence" (language_confidence may be null).
-    Text: "{text}"
-    '''
-
-    response = model.generate_content(prompt)
-    if not response.parts or not response.text:
-        raise HTTPException(status_code=400, detail="AI content generation failed. Empty response from Gemini API.")
-
-    # Strip markdown code fences if present
-    text_resp = response.text.strip()
-    if text_resp.startswith("```"):
-        text_resp = text_resp.split("```", 1)[1]
-        if text_resp.startswith("json"):
-            text_resp = text_resp[4:].lstrip()
-        text_resp = text_resp.rsplit("```", 1)[0].strip()
-
     try:
-        result = json.loads(text_resp)
-    except json.JSONDecodeError as je:
-        print(f"Failed to parse JSON response from Gemini: {response.text}")
-        raise HTTPException(status_code=400, detail=f"AI returned invalid JSON: {str(je)}")
+        model = genai.GenerativeModel(model_name)
+        prompt = f'''
+        Analyze the following customer feedback text.
+        Your task is to:
+        1. Detect the language of the input and return it as an ISO 639-1 code in the key "language".
+        2. Translate the text into English and return it in "translated_text".
+        3. Classify the sentiment as one of: 'positive', 'negative', or 'neutral' and return it in "sentiment".
+        4. Optionally return a numeric confidence for language detection as "language_confidence".
+        Provide the output ONLY in a valid JSON format with the keys: "translated_text", "sentiment", "language", and "language_confidence" (language_confidence may be null).
+        Text: "{text}"
+        '''
 
-    return result
+        response = model.generate_content(prompt)
+        if not response.parts or not response.text:
+            raise HTTPException(status_code=400, detail="AI content generation failed. Empty response from Gemini API.")
+
+        # Strip markdown code fences if present
+        text_resp = response.text.strip()
+        if text_resp.startswith("```"):
+            text_resp = text_resp.split("```", 1)[1]
+            if text_resp.startswith("json"):
+                text_resp = text_resp[4:].lstrip()
+            text_resp = text_resp.rsplit("```", 1)[0].strip()
+
+        try:
+            result = json.loads(text_resp)
+        except json.JSONDecodeError as je:
+            print(f"Failed to parse JSON response from Gemini: {response.text}")
+            raise HTTPException(status_code=400, detail=f"AI returned invalid JSON: {str(je)}")
+
+        return result
+    
+    except Exception as e:
+        error_msg = str(e)
+        # Check for quota/rate limit errors
+        if 'ResourceExhausted' in str(type(e)) or 'quota' in error_msg.lower() or '429' in error_msg:
+            raise HTTPException(
+                status_code=429, 
+                detail=f"API rate limit exceeded for model {model_name}. Please wait a moment and try again, or select a different model in Settings."
+            )
+        # Check for invalid model errors
+        elif 'not found' in error_msg.lower() or 'invalid' in error_msg.lower():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid or unsupported model: {model_name}. Please select a different model in Settings."
+            )
+        else:
+            # Generic error
+            print(f"Error calling Gemini API with model {model_name}: {error_msg}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI analysis failed: {error_msg[:200]}"
+            )
 
 
 # --- Auth Endpoints ---
@@ -433,9 +488,14 @@ translate_limiter = Depends(make_rate_limiter(limit=30, window_seconds=60, key="
 feedback_limiter = Depends(make_rate_limiter(limit=10, window_seconds=60, key="feedback"))
 
 @app.post("/api/translate", response_model=schemas.TranslateOutput)
-async def translate_only(feedback_input: schemas.TranslateInput, _: None = translate_limiter):
+async def translate_only(
+    feedback_input: schemas.TranslateInput, 
+    db: AsyncSession = Depends(get_db),
+    _: None = translate_limiter
+):
     """Translate and classify sentiment without storing."""
-    analysis = _call_gemini_analysis(feedback_input.text)
+    model_name = await _get_current_gemini_model(db)
+    analysis = _call_gemini_analysis(feedback_input.text, model_name)
     return schemas.TranslateOutput(**analysis)
 
 
@@ -472,7 +532,8 @@ async def create_feedback(
                 print("Client disconnected before Gemini call, aborting...")
                 raise HTTPException(status_code=499, detail="Client disconnected")
 
-            analysis = _call_gemini_analysis(feedback_input.text)
+            model_name = await _get_current_gemini_model(db)
+            analysis = _call_gemini_analysis(feedback_input.text, model_name)
 
         # Check if client disconnected before saving
         if await request.is_disconnected():
@@ -602,3 +663,148 @@ async def get_stats(
     percentages = {k: (v / total * 100) if total else 0 for k, v in counts.items()}
 
     return {"total": total, "counts": counts, "percentages": percentages}
+
+
+# --- Gemini Model Management Endpoints ---
+
+@app.get("/api/gemini/models", response_model=list[schemas.GeminiModel])
+async def list_gemini_models(_: dict = Depends(get_current_admin)):
+    """List available Gemini models dynamically from Google API."""
+    global _gemini_models_cache, _gemini_models_cache_time
+    
+    # Check if cache is valid
+    now = datetime.now(timezone.utc)
+    if (_gemini_models_cache is not None and    
+        _gemini_models_cache_time is not None and 
+        (now - _gemini_models_cache_time).total_seconds() < MODELS_CACHE_TTL):
+        print("Returning cached models list")
+        return _gemini_models_cache
+    
+    try:
+        print("Fetching models from Google Gemini API...")
+        # Fetch available models from Google Generative AI API
+        available_models = genai.list_models()
+        
+        # Filter for models that support generateContent method
+        models_list = []
+        for model in available_models:
+            try:
+                # Extract model name first for logging
+                model_name = model.name
+                model_name_lower = model_name.lower()
+                
+                # Check model properties for better filtering
+                supported_methods = getattr(model, 'supported_generation_methods', [])
+                
+                # Must support generateContent method
+                if 'generateContent' not in supported_methods:
+                    print(f"Skipping model without generateContent: {model_name}")
+                    continue
+                
+                # Filter based on input/output modalities if available
+                # Text generation models should support text input and text output
+                input_token_limit = getattr(model, 'input_token_limit', 0)
+                output_token_limit = getattr(model, 'output_token_limit', 0)
+                
+                # Models with very low token limits are likely not suitable for text generation
+                if input_token_limit > 0 and input_token_limit < 1000:
+                    print(f"Skipping model with low token limit: {model_name} (input: {input_token_limit})")
+                    continue
+                
+                # Apply keyword filtering as a safety net for obvious non-text models
+                # This catches models like embedding, image, audio, video variations
+                skip_keywords = ['embedding', 'aqa', 'imagen', 'text-embedding', 'image', 'audio', 'video', 'vision']
+                if any(keyword in model_name_lower for keyword in skip_keywords):
+                    print(f"Skipping non-text model by keyword: {model_name}")
+                    continue
+
+                
+                # Create display name from model name
+                # e.g., "models/gemini-1.5-flash" -> "Gemini 1.5 Flash"
+                display_name = model_name.replace('models/', '').replace('-', ' ').replace('_', ' ').title()
+                
+                # Build description with model info
+                description_parts = []
+                if hasattr(model, 'display_name') and model.display_name:
+                    # Use official display name if available
+                    display_name = model.display_name
+                
+                if hasattr(model, 'description') and model.description:
+                    desc_short = model.description[:100] + "..." if len(model.description) > 100 else model.description
+                    description_parts.append(desc_short)
+                
+                description = description_parts[0] if description_parts else "AI model for content generation"
+                
+                models_list.append({
+                    "name": model_name,
+                    "display_name": display_name,
+                    "description": description
+                })
+            except Exception as e:
+                # Skip models that cause errors during processing
+                model_name = getattr(model, 'name', 'unknown')
+                print(f"Error processing model {model_name}: {e}")
+                continue
+        
+        # Sort by name for consistent ordering
+        models_list.sort(key=lambda x: x['name'])
+        
+        # If no models found, raise an error
+        if not models_list:
+            print("ERROR: No models with generateContent support found in API response")
+            raise HTTPException(
+                status_code=503,
+                detail="No compatible Gemini models found. Please check your API key or try again later."
+            )
+        
+        print(f"Successfully fetched {len(models_list)} models from API")
+        # Update cache
+        _gemini_models_cache = models_list
+        _gemini_models_cache_time = now
+        
+        return models_list
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like the 503 above)
+        raise
+    except Exception as e:
+        print(f"Error fetching models from Google API: {e}")
+        import traceback
+        traceback.print_exc()
+        # Raise error to inform user
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to fetch models from Google Gemini API: {str(e)}. Please check your API key and internet connection."
+        )
+
+
+@app.get("/api/gemini/current-model", response_model=schemas.ModelSetting)
+async def get_current_model(db: AsyncSession = Depends(get_db), _: dict = Depends(get_current_admin)):
+    """Get the currently selected Gemini model."""
+    model_name = await _get_current_gemini_model(db)
+    return {"current_model": model_name}
+
+
+@app.post("/api/gemini/current-model", response_model=schemas.ModelSetting)
+async def update_current_model(
+    payload: schemas.ModelSettingUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    """Update the currently selected Gemini model."""
+    try:
+        # Check if setting exists
+        res = await db.execute(select(models.Settings).where(models.Settings.key == "gemini_model"))
+        setting = res.scalars().first()
+        
+        if setting:
+            setting.value = payload.model_name
+        else:
+            setting = models.Settings(key="gemini_model", value=payload.model_name)
+            db.add(setting)
+        
+        await db.commit()
+        return {"current_model": payload.model_name}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update model setting: {e}")

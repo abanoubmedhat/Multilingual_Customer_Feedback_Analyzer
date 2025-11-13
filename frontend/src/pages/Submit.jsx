@@ -61,7 +61,11 @@ export default function Submit({ products = [], productsLoading = false }){
         throw new DOMException('Aborted', 'AbortError')
       }
 
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        const errorMsg = errorData.detail || `API error: ${res.status}`
+        throw new Error(errorMsg)
+      }
       const analysisData = await res.json()
       
       // Check if cancelled during analysis
@@ -92,7 +96,11 @@ export default function Submit({ products = [], productsLoading = false }){
         throw new DOMException('Aborted', 'AbortError')
       }
 
-      if (!saveRes.ok) throw new Error(`Save failed: ${saveRes.status}`)
+      if (!saveRes.ok) {
+        const errorData = await saveRes.json().catch(() => ({}))
+        const errorMsg = errorData.detail || `Save failed: ${saveRes.status}`
+        throw new Error(errorMsg)
+      }
       const savedData = await saveRes.json()
 
       setResult(savedData)

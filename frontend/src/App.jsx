@@ -240,6 +240,120 @@ export default function App(){
     )
   }
 
+  function GeminiModelSelector(){
+    const [models, setModels] = useState([])
+    const [currentModel, setCurrentModel] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [msg, setMsg] = useState(null)
+    const [err, setErr] = useState(null)
+
+    useEffect(() => {
+      loadModels()
+      loadCurrentModel()
+    }, [])
+
+    async function loadModels(){
+      try{
+        const res = await fetchWithAuth('/api/gemini/models')
+        if (res.ok){
+          const data = await res.json()
+          setModels(data)
+          setErr(null)
+        } else {
+          const error = await res.json().catch(() => ({ detail: 'Failed to load models' }))
+          setErr(error.detail || 'Failed to load models from Google API')
+        }
+      }catch(error){
+        console.error('Error loading models:', error)
+        setErr('Network error: Could not connect to server')
+      }finally{
+        setLoading(false)
+      }
+    }
+
+    async function loadCurrentModel(){
+      try{
+        const res = await fetchWithAuth('/api/gemini/current-model')
+        if (res.ok){
+          const data = await res.json()
+          setCurrentModel(data.current_model)
+        } else {
+          console.error('Error loading current model')
+        }
+      }catch(error){
+        console.error('Error loading current model:', error)
+      }
+    }
+
+    async function handleModelChange(e){
+      const newModel = e.target.value
+      setMsg(null); setErr(null)
+      
+      try{
+        const res = await fetchWithAuth('/api/gemini/current-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_name: newModel })
+        })
+        
+        if (!res.ok){
+          throw new Error('Failed to update model')
+        }
+        
+        setCurrentModel(newModel)
+        setMsg('Model updated successfully')
+        setTimeout(() => setMsg(null), 3000)
+      }catch(error){
+        setErr(error.message)
+      }
+    }
+
+    if (loading){
+      return <div>Loading available models from Google API...</div>
+    }
+
+    if (err && models.length === 0){
+      return (
+        <div>
+          <div className="error-message" role="alert">
+            <strong>⚠️ Error Loading Models</strong>
+            <p>{err}</p>
+            <button onClick={() => { setLoading(true); setErr(null); loadModels(); }} style={{marginTop: 8}}>
+              Retry
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div>
+        <div className="form-group">
+          <label htmlFor="gemini-model">Select AI Model</label>
+          <select 
+            id="gemini-model" 
+            value={currentModel} 
+            onChange={handleModelChange}
+            style={{width: '100%'}}
+            disabled={models.length === 0}
+          >
+            {models.length === 0 && <option value="">No models available</option>}
+            {models.map(model => (
+              <option key={model.name} value={model.name}>
+                {model.display_name}
+              </option>
+            ))}
+          </select>
+          <div className="hint">
+            {models.find(m => m.name === currentModel)?.description || 'Select a model'}
+          </div>
+        </div>
+        {msg && <div className="success-message" style={{marginTop:8}}>{msg}</div>}
+        {err && <div className="error-message" style={{marginTop:8}}>{err}</div>}
+      </div>
+    )
+  }
+
   function ChangePassword(){
     const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
@@ -400,6 +514,10 @@ export default function App(){
               </div>
               <h3 style={{marginTop:12}}>Products</h3>
               <ProductsManager />
+            </div>
+            <div className="card">
+              <h2>Gemini AI Model</h2>
+              <GeminiModelSelector />
             </div>
             <div className="card">
               <h2>Change Password</h2>

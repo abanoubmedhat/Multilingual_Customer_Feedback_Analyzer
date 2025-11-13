@@ -269,13 +269,39 @@ export default function Dashboard({ token }){
             const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
             setBulkMsg(`Deleted ${deletedCount} feedback entries.`)
             setSelectedIds([])
-            // Clear filters to show all remaining feedback
+            // Clear filters since the filtered items no longer exist
             setSelectedProduct('')
             setSelectedLanguage('')
             // Reset to first page
             setPage(0)
-            // Refresh data with cleared filters
-            await refreshAll(true)
+            
+            // Manually reload with cleared filters (state updates are async)
+            // Load filters first, then stats and feedback page with no filters
+            await loadFilters()
+            
+            // Load stats with cleared filters
+            try {
+              const statsRes = await fetchWithAuth('/api/stats')
+              if (statsRes.ok) {
+                const statsData = await statsRes.json()
+                setStats(statsData)
+              }
+            } catch(err) {
+              console.error('Error loading stats:', err)
+            }
+            
+            // Load feedback page with cleared filters
+            try {
+              const feedbackRes = await fetchWithAuth('/api/feedback?skip=0&limit=' + pageSize)
+              if (feedbackRes.ok) {
+                const feedbackData = await feedbackRes.json()
+                setFeedbackPage(Array.isArray(feedbackData.items) ? feedbackData.items : [])
+                setTotalFeedback(feedbackData.total || 0)
+              }
+            } catch(err) {
+              console.error('Error loading feedback:', err)
+            }
+            
             resolve() // Resolve the promise on success
           } catch(e){
             setBulkError(e.message)
@@ -321,7 +347,11 @@ export default function Dashboard({ token }){
                 <select 
                   id="product-filter"
                   value={selectedProduct} 
-                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedProduct(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
                   className="filter-select"
                 >
                   <option value="">All Products</option>
@@ -334,7 +364,11 @@ export default function Dashboard({ token }){
                 <select 
                   id="language-filter"
                   value={selectedLanguage} 
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedLanguage(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
                   className="filter-select"
                 >
                   <option value="">All Languages</option>
@@ -344,7 +378,11 @@ export default function Dashboard({ token }){
 
               <button 
                 className="filter-btn refresh-btn" 
-                onClick={()=>refreshAll(true)} 
+                onClick={()=>{
+                  setBulkMsg(null);
+                  setBulkError(null);
+                  refreshAll(true);
+                }} 
                 disabled={loading}
                 title="Refresh data"
               >
@@ -353,7 +391,12 @@ export default function Dashboard({ token }){
 
               <button 
                 className="filter-btn clear-btn" 
-                onClick={()=>{setSelectedProduct(''); setSelectedLanguage('');}}
+                onClick={()=>{
+                  setSelectedProduct('');
+                  setSelectedLanguage('');
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
                 disabled={!selectedProduct && !selectedLanguage}
                 title="Clear all filters"
               >
@@ -364,7 +407,16 @@ export default function Dashboard({ token }){
             {stats && stats.total === 0 && (
               <div className="empty-state">
                 <div className="empty-state-icon">📭</div>
-                <p>No feedback yet. Submit some feedback to see statistics!</p>
+                {selectedProduct || selectedLanguage ? (
+                  <div>
+                    <p>No feedback matches the current filters.</p>
+                    <p style={{fontSize: '14px', color: '#666', marginTop: '8px'}}>
+                      Try clearing the filters or adjusting your selection.
+                    </p>
+                  </div>
+                ) : (
+                  <p>No feedback yet. Submit some feedback to see statistics!</p>
+                )}
               </div>
             )}
             {/* Debug info removed for production UI */}
@@ -379,7 +431,11 @@ export default function Dashboard({ token }){
                 <select 
                   id="product-filter"
                   value={selectedProduct} 
-                  onChange={(e) => setSelectedProduct(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedProduct(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
                   className="filter-select"
                 >
                   <option value="">All Products</option>
@@ -392,7 +448,11 @@ export default function Dashboard({ token }){
                 <select 
                   id="language-filter"
                   value={selectedLanguage} 
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedLanguage(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
                   className="filter-select"
                 >
                   <option value="">All Languages</option>
@@ -402,7 +462,11 @@ export default function Dashboard({ token }){
 
               <button 
                 className="filter-btn refresh-btn" 
-                onClick={()=>refreshAll(true)} 
+                onClick={()=>{
+                  setBulkMsg(null);
+                  setBulkError(null);
+                  refreshAll(true);
+                }} 
                 disabled={loading}
                 title="Refresh data"
               >
@@ -411,7 +475,12 @@ export default function Dashboard({ token }){
 
               <button 
                 className="filter-btn clear-btn" 
-                onClick={()=>{setSelectedProduct(''); setSelectedLanguage('');}}
+                onClick={()=>{
+                  setSelectedProduct('');
+                  setSelectedLanguage('');
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
                 disabled={!selectedProduct && !selectedLanguage}
                 title="Clear all filters"
               >
@@ -618,7 +687,7 @@ export default function Dashboard({ token }){
                 style={{width:'auto'}}
                 onClick={deleteAllFiltered}
                 disabled={totalFeedback===0}
-              >Delete All Filtered ({totalFeedback})</button>
+              >{selectedProduct || selectedLanguage ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
               <button
                 className="btn-secondary"
                 style={{width:'auto'}}

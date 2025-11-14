@@ -7,6 +7,13 @@ export default defineConfig({
   server: {
     host: true,
     port: 3000,
+    // Allow Render.com hosts and any other hosts (for production preview)
+    allowedHosts: [
+      'feedback-analyzer-frontend.onrender.com',
+      '.onrender.com', // Allow all Render subdomains
+      'localhost',
+      '127.0.0.1'
+    ],
     proxy: {
       '/api': {
         // Use BACKEND_URL env var if set (useful when running vite locally).

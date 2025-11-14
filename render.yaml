@@ -1,22 +1,21 @@
 # Render Blueprint for Feedback Analyzer
-# This file enables one-click deployment on Render.com
+# This file enables deployment on Render.com
+# Note: Render Blueprints have limitations - manual setup recommended for free tier
+
+databases:
+  - name: feedback-analyzer-db
+    databaseName: feedbackdb
+    user: feedbackuser
+    plan: free
 
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: feedback-analyzer-db
-    plan: free
-    databaseName: feedbackdb
-    databaseUser: feedbackuser
-
   # Backend API (FastAPI)
   - type: web
     name: feedback-analyzer-backend
-    runtime: docker
+    env: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     plan: free
-    region: oregon
     healthCheckPath: /
     envVars:
       - key: DATABASE_URL
@@ -24,35 +23,28 @@ services:
           name: feedback-analyzer-db
           property: connectionString
       - key: GOOGLE_API_KEY
-        sync: false  # User must provide this
+        sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
-        value: 60
+        value: "60"
       - key: ADMIN_USERNAME
-        value: admin
+        value: "admin"
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ADMIN_FORCE_RESET
-        value: false
+        value: "false"
       - key: ALLOWED_ORIGINS
-        fromService:
-          type: web
-          name: feedback-analyzer-frontend
-          property: host
+        value: https://feedback-analyzer-frontend.onrender.com
 
   # Frontend (React + Nginx)
   - type: web
     name: feedback-analyzer-frontend
-    runtime: docker
+    env: docker
     dockerfilePath: ./frontend/Dockerfile.prod
     dockerContext: ./frontend
     plan: free
-    region: oregon
     healthCheckPath: /health
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: feedback-analyzer-backend
-          property: host
+        value: https://feedback-analyzer-backend.onrender.com

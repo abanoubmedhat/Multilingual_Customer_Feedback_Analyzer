@@ -431,22 +431,8 @@ export default function App(){
       </a>
 
       {/* Header with Title and Login Button */}
-      <div className="app-header">
+      <div className="header">
         <h1>📊 Feedback Analyzer</h1>
-        
-        {/* Login Button for Non-Authenticated Users */}
-        {!token && (
-          <button 
-            className="login-trigger-btn"
-            onClick={() => {
-              setShowLoginModal(true)
-              setSessionExpiredMsg(null) // Clear expired message when opening login
-            }}
-            aria-label="Open admin login"
-          >
-            🔐 Admin Login
-          </button>
-        )}
       </div>
 
       {/* Session Expired Message */}
@@ -495,7 +481,22 @@ export default function App(){
         {/* Submit Tab - Always visible for non-authenticated, or when selected */}
         {(!token || activeTab === 'submit') && (
           <div className="card submit-card">
-            <h2>✍️ Submit Feedback</h2>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+              <h2 style={{margin: 0}}>✍️ Submit Feedback</h2>
+              {/* Login Button for Non-Authenticated Users */}
+              {!token && (
+                <button 
+                  className="login-trigger-btn"
+                  onClick={() => {
+                    setShowLoginModal(true)
+                    setSessionExpiredMsg(null) // Clear expired message when opening login
+                  }}
+                  aria-label="Open admin login"
+                >
+                  🔐 Admin Login
+                </button>
+              )}
+            </div>
             {/* Key forces remount on auth transitions to clear internal form state */}
             <Submit key={token ? 'auth' : 'guest'} products={products} productsLoading={productsLoading} />
           </div>

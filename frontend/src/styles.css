@@ -212,9 +212,6 @@ h1 {
 
 /* Login Trigger Button */
 .login-trigger-btn {
-  position: absolute;
-  right: 16px;
-  top: 16px;
   width: auto;
   padding: 10px 20px;
   background: rgba(255, 255, 255, 0.95);

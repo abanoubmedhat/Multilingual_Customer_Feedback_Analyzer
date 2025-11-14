@@ -127,6 +127,8 @@ button:focus-visible {
   overflow-y: auto;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
+  overflow-anchor: none; /* Prevent scroll anchoring */
+  scroll-behavior: auto; /* Disable smooth scrolling */
 }
 
 .container::-webkit-scrollbar {
@@ -1612,6 +1614,8 @@ button:disabled {
 
 .recent-feedback ul {
   list-style: none;
+  will-change: contents;
+  contain: layout style;
 }
 
 .feedback-item {
@@ -1625,6 +1629,7 @@ button:disabled {
   animation: slideIn 0.3s ease-out;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  contain: layout;
 }
 
 .feedback-item-positive {
@@ -1722,7 +1727,7 @@ button:disabled {
 /* Fields Dropdown Menu */
 .fields-dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
+  bottom: calc(100% + 8px);
   right: 0;
   background: white;
   border: 2px solid var(--border);
@@ -1731,7 +1736,18 @@ button:disabled {
   padding: 12px;
   min-width: 220px;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeInUp 0.2s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .field-checkbox-item {
@@ -1805,6 +1821,7 @@ button:disabled {
   word-wrap: break-word;
   overflow-wrap: break-word;
   letter-spacing: 0.01em;
+  transition: none;
 }
 
 .feedback-text:last-child {
@@ -1818,6 +1835,8 @@ button:disabled {
   padding-top: 12px;
   border-top: 1px solid #e5e7eb;
   word-wrap: break-word;
+  transition: none;
+  animation: none;
   line-height: 1.6;
 }
 

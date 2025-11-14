@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 
@@ -24,6 +24,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   // Visibility toggles for optional fields
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showFieldsMenu, setShowFieldsMenu] = useState(false)
+  // Anchor refs for preserving scroll position relative to the Show Fields button
+  const fieldsBtnRef = useRef(null)
+  const lastBtnTopRef = useRef(null)
 
   async function loadFilters(){
     try{
@@ -138,6 +141,27 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showFieldsMenu])
+
+  // After translated visibility toggles, adjust scroll to keep the Show Fields button
+  // at the same viewport position. We record its pre-toggle top (relative to viewport)
+  // then shift scroll by the delta after layout. useLayoutEffect ensures DOM is painted.
+  useLayoutEffect(() => {
+    if (lastBtnTopRef.current == null) return
+    const btn = fieldsBtnRef.current
+    const container = document.querySelector('.container')
+    if (!btn || !container) {
+      lastBtnTopRef.current = null
+      return
+    }
+    const newTop = btn.getBoundingClientRect().top
+    const diff = newTop - lastBtnTopRef.current
+    if (Math.abs(diff) > 1) {
+      const maxScroll = container.scrollHeight - container.clientHeight
+      const proposed = container.scrollTop + diff
+      container.scrollTop = Math.min(Math.max(0, proposed), maxScroll)
+    }
+    lastBtnTopRef.current = null
+  }, [showTranslated])
 
   // Unified refresh helper: refresh filters, stats, and the current page
   async function refreshAll(resetToFirstPage = true){
@@ -763,7 +787,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               ))}
             </ul>
 
-            <div style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
+            <div id="bulk-actions-bar" style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
               <button className="btn-tertiary" style={{width:'auto'}} onClick={toggleAll} disabled={feedbackPage.length===0}>
                 {selectedIds.length === feedbackPage.length && feedbackPage.length>0 ? 'Unselect All' : 'Select All'}
               </button>
@@ -783,6 +807,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               {/* View Options Dropdown */}
               <div style={{position: 'relative', display: 'inline-block'}}>
                 <button
+                  ref={fieldsBtnRef}
                   className="btn-secondary"
                   style={{width:'auto'}}
                   onClick={()=>setShowFieldsMenu(s=>!s)}
@@ -793,19 +818,48 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 
                 {showFieldsMenu && (
                   <div className="fields-dropdown-menu">
-                    <label className="field-checkbox-item">
+                    <label 
+                      className="field-checkbox-item"
+                      onClick={(e)=>{
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const container = document.querySelector('.container')
+                        // Record button's current viewport position to preserve after toggle
+                        if (fieldsBtnRef.current) {
+                          lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
+                        }
+                        setShowTranslated(prev => !prev)
+                        setShowFieldsMenu(false)
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={showTranslated}
-                        onChange={(e)=>setShowTranslated(e.target.checked)}
+                        onChange={()=>{}}
+                        onClick={(e)=>e.preventDefault()}
+                        tabIndex={-1}
                       />
                       <span>🌐 Translated Text</span>
                     </label>
-                    <label className="field-checkbox-item">
+                    <label 
+                      className="field-checkbox-item"
+                      onClick={(e)=>{
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const container = document.querySelector('.container')
+                        if (fieldsBtnRef.current) {
+                          lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
+                        }
+                        setShowTimestamp(prev => !prev)
+                        setShowFieldsMenu(false)
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={showTimestamp}
-                        onChange={(e)=>setShowTimestamp(e.target.checked)}
+                        onChange={()=>{}}
+                        onClick={(e)=>e.preventDefault()}
+                        tabIndex={-1}
                       />
                       <span>🕒 Timestamp</span>
                     </label>

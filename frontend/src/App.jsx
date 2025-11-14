@@ -535,31 +535,33 @@ export default function App(){
         Skip to main content
       </a>
 
-      {/* Header with Title and Login Button - Fixed at top */}
-      <div className="header">
-        <h1>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
-            width: '48px', 
-            height: '48px', 
-            verticalAlign: 'middle', 
-            marginRight: '16px',
-            marginBottom: '12px',
-            display: 'inline-block'
-          }}>
-            <g transform="translate(30, 30)">
-              {/* Bar 1 (shortest - blue) */}
-              <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA"/>
-              
-              {/* Bar 2 (medium - green) */}
-              <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399"/>
-              
-              {/* Bar 3 (tallest - yellow) */}
-              <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24"/>
-            </g>
-          </svg>
-          Multilingual Feedback Analyzer
-        </h1>
-      </div>
+      {/* Header with Title - Only fixed when logged in (admin mode) */}
+      {token && (
+        <div className="header header-fixed">
+          <h1>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
+              width: '48px', 
+              height: '48px', 
+              verticalAlign: 'middle', 
+              marginRight: '16px',
+              marginBottom: '12px',
+              display: 'inline-block'
+            }}>
+              <g transform="translate(30, 30)">
+                {/* Bar 1 (shortest - blue) */}
+                <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA"/>
+                
+                {/* Bar 2 (medium - green) */}
+                <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399"/>
+                
+                {/* Bar 3 (tallest - yellow) */}
+                <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24"/>
+              </g>
+            </svg>
+            Multilingual Feedback Analyzer
+          </h1>
+        </div>
+      )}
 
       {/* Navigation Tabs - Fixed below header */}
       {token && (
@@ -597,6 +599,34 @@ export default function App(){
 
       {/* Scrollable Content Container */}
       <div className={token ? "container" : "container container-no-nav"}>
+        {/* Non-fixed header for user mode (not logged in) */}
+        {!token && (
+          <div className="header header-inline">
+            <h1>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
+                width: '48px', 
+                height: '48px', 
+                verticalAlign: 'middle', 
+                marginRight: '16px',
+                marginBottom: '12px',
+                display: 'inline-block'
+              }}>
+                <g transform="translate(30, 30)">
+                  {/* Bar 1 (shortest - blue) */}
+                  <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA"/>
+                  
+                  {/* Bar 2 (medium - green) */}
+                  <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399"/>
+                  
+                  {/* Bar 3 (tallest - yellow) */}
+                  <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24"/>
+                </g>
+              </svg>
+              Multilingual Feedback Analyzer
+            </h1>
+          </div>
+        )}
+
         {/* Session Expired Message */}
         {sessionExpiredMsg && (
           <div className="error-message" style={{marginBottom: '20px', textAlign: 'center'}}>

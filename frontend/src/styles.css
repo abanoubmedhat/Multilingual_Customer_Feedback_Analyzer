@@ -123,11 +123,12 @@ button:focus-visible {
 }
 
 .container-no-nav {
-  margin-top: 120px;
+  margin-top: 0;
+  padding-top: 20px;
 }
 
-/* Header */
-.header {
+/* Header - Fixed for admin mode */
+.header-fixed {
   text-align: center;
   position: fixed;
   top: 0;
@@ -136,6 +137,15 @@ button:focus-visible {
   width: 100%;
   z-index: 100;
   padding: 20px;
+  animation: fadeInDown 0.6s ease-out;
+}
+
+/* Header - Inline for user mode */
+.header-inline {
+  text-align: center;
+  padding: 20px 0;
+  margin-bottom: 20px;
+  animation: fadeIn 0.6s ease-out;
 }
 
 .header h1 {
@@ -143,6 +153,39 @@ button:focus-visible {
 }
 
 @keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes navFadeIn {
   from {
     opacity: 0;
     transform: translateY(20px);
@@ -190,53 +233,62 @@ h1 {
 /* Navigation Tabs */
 .main-nav {
   display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  background: white;
-  box-shadow: var(--shadow);
+  gap: 10px;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   flex-wrap: wrap;
   position: fixed;
   top: 100px;
-  left: 0;
-  right: 0;
-  width: 100%;
+  left: 50%;
+  margin-left: -600px;
+  max-width: 1200px;
+  width: calc(100% - 40px);
   z-index: 99;
   justify-content: center;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: navFadeIn 0.6s ease-out 0.2s both;
 }
 
 .nav-btn {
   padding: 12px 24px;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   background: transparent;
-  color: var(--text-light);
+  color: rgba(255, 255, 255, 0.85);
   transition: var(--transition);
   width: auto;
   font-size: 15px;
   font-weight: 600;
   box-shadow: none;
-  border: none;
+  border: 1px solid transparent;
 }
 
 .nav-btn:hover:not(.active) {
-  background: var(--neutral);
-  color: var(--text);
-  transform: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .nav-btn.active {
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-  color: white;
-  box-shadow: var(--shadow);
+  background: white;
+  color: var(--primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: white;
 }
 
 .nav-btn.logout-btn {
   margin-left: auto;
-  color: var(--danger);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .nav-btn.logout-btn:hover {
-  background: var(--danger-light);
-  color: var(--danger);
+  background: rgba(220, 38, 38, 0.2);
+  color: white;
+  border-color: rgba(220, 38, 38, 0.5);
 }
 
 /* Login Trigger Button */

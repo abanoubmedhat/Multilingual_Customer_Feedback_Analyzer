@@ -103,6 +103,16 @@ export default function App(){
     }
   }, [token])
 
+  // Auto-dismiss product success messages after 3 seconds
+  useEffect(() => {
+    if (productMsg) {
+      const timer = setTimeout(() => {
+        setProductMsg(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [productMsg])
+
   // Load products (used by Submit and Products manager)
   async function loadProducts(){
     setProductsLoading(true)

@@ -18,7 +18,6 @@ class TranslateOutput(BaseModel):
     translated_text: str
     sentiment: str
     language: str | None = None
-    language_confidence: float | None = None
 
 # --- Feedback Schemas ---
 
@@ -29,7 +28,6 @@ class FeedbackBase(BaseModel):
     sentiment: str
     product: str | None = None
     language: str | None = None
-    language_confidence: float | None = None
 
 # Schema for displaying feedback (includes DB-generated fields)
 class Feedback(FeedbackBase):
@@ -49,7 +47,6 @@ class FeedbackCreate(BaseModel):
     language: str | None = None
     translated_text: str | None = None
     sentiment: str | None = None
-    language_confidence: float | None = None
 
 
 # --- Feedback Delete Schemas ---

@@ -20,6 +20,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [selectedIds, setSelectedIds] = useState([])
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
+  
+  // Visibility toggles for optional fields
+  const [showTimestamp, setShowTimestamp] = useState(true)
+  const [showFieldsMenu, setShowFieldsMenu] = useState(false)
 
   async function loadFilters(){
     try{
@@ -123,6 +127,17 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   useEffect(() => {
     localStorage.setItem('pageSize', String(pageSize))
   }, [pageSize])
+
+  // Close fields menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (showFieldsMenu && !e.target.closest('.fields-dropdown-menu') && !e.target.closest('button')) {
+        setShowFieldsMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showFieldsMenu])
 
   // Unified refresh helper: refresh filters, stats, and the current page
   async function refreshAll(resetToFirstPage = true){
@@ -686,9 +701,11 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     </span>
                     <span className="language-tag">{f.language || 'unknown'}</span>
                     <span className="product-tag">{f.product || '(unspecified)'}</span>
-                    <span className="timestamp-tag" title={new Date(f.created_at).toLocaleString()}>
-                      🕒 {new Date(f.created_at).toLocaleDateString()} {new Date(f.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                    </span>
+                    {showTimestamp && (
+                      <span className="timestamp-tag" title={new Date(f.created_at).toLocaleString()}>
+                        🕒 {new Date(f.created_at).toLocaleDateString()} {new Date(f.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </span>
+                    )}
                     <button
                       className="icon-btn delete-btn"
                       onClick={(e)=>{ 
@@ -762,12 +779,39 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 onClick={deleteAllFiltered}
                 disabled={totalFeedback===0}
               >{selectedProduct || selectedLanguage || selectedSentiment ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
-              <button
-                className="btn-secondary"
-                style={{width:'auto'}}
-                onClick={()=>setShowTranslated(s=>!s)}
-                disabled={feedbackPage.length===0}
-              >{showTranslated ? 'Hide Translated' : 'Show Translated'}</button>
+              
+              {/* View Options Dropdown */}
+              <div style={{position: 'relative', display: 'inline-block'}}>
+                <button
+                  className="btn-secondary"
+                  style={{width:'auto'}}
+                  onClick={()=>setShowFieldsMenu(s=>!s)}
+                  title="Show/hide optional fields"
+                >
+                  👁️ Show Fields {showFieldsMenu ? '▲' : '▼'}
+                </button>
+                
+                {showFieldsMenu && (
+                  <div className="fields-dropdown-menu">
+                    <label className="field-checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={showTranslated}
+                        onChange={(e)=>setShowTranslated(e.target.checked)}
+                      />
+                      <span>🌐 Translated Text</span>
+                    </label>
+                    <label className="field-checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={showTimestamp}
+                        onChange={(e)=>setShowTimestamp(e.target.checked)}
+                      />
+                      <span>🕒 Timestamp</span>
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
 
             {confirmDelete && createPortal(

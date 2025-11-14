@@ -133,6 +133,5 @@ def mock_gemini_response():
     return {
         "translated_text": "This is excellent!",
         "sentiment": "positive",
-        "language": "en",
-        "language_confidence": 0.99
+        "language": "en"
     }

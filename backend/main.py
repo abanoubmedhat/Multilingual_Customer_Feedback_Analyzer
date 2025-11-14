@@ -359,7 +359,7 @@ async def _get_current_gemini_model(db: AsyncSession) -> str:
 
 def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash") -> dict:
     """Call Gemini model synchronously and return a dict with keys:
-    translated_text, sentiment, language (ISO code), language_confidence (optional)
+    translated_text, sentiment, language (ISO code)
     This wraps the previous parsing logic into one place.
     """
     try:
@@ -370,8 +370,9 @@ def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash"
         1. Detect the language of the input and return it as an ISO 639-1 code in the key "language".
         2. Translate the text into English and return it in "translated_text".
         3. Classify the sentiment as one of: 'positive', 'negative', or 'neutral' and return it in "sentiment".
-        4. Optionally return a numeric confidence for language detection as "language_confidence".
-        Provide the output ONLY in a valid JSON format with the keys: "translated_text", "sentiment", "language", and "language_confidence" (language_confidence may be null).
+        
+        Provide the output ONLY in valid JSON format with these exact keys: "language", "translated_text", "sentiment".
+        
         Text: "{text}"
         '''
 
@@ -390,9 +391,8 @@ def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash"
         try:
             result = json.loads(text_resp)
         except json.JSONDecodeError as je:
-            print(f"Failed to parse JSON response from Gemini: {response.text}")
             raise HTTPException(status_code=400, detail=f"AI returned invalid JSON: {str(je)}")
-
+        
         return result
     
     except Exception as e:
@@ -522,8 +522,7 @@ async def create_feedback(
             analysis = {
                 "translated_text": feedback_input.translated_text,
                 "sentiment": feedback_input.sentiment,
-                "language": feedback_input.language,
-                "language_confidence": feedback_input.language_confidence
+                "language": feedback_input.language
             }
         else:
             # No pre-analyzed data, need to call Gemini
@@ -545,8 +544,7 @@ async def create_feedback(
             translated_text=analysis.get("translated_text"),
             sentiment=analysis.get("sentiment"),
             product=feedback_input.product,
-            language=analysis.get("language"),
-            language_confidence=analysis.get("language_confidence")
+            language=analysis.get("language")
         )
         db.add(db_feedback)
         await db.commit()

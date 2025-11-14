@@ -178,10 +178,10 @@ async def lifespan(app: FastAPI):
             res = await s.execute(select(models.Settings).where(models.Settings.key == "gemini_model"))
             setting = res.scalars().first()
             if not setting:
-                # Default to gemini-1.5-flash (better free tier quota)
-                s.add(models.Settings(key="gemini_model", value="models/gemini-1.5-flash"))
+                # Default to gemini-2.5-flash (better free tier quota)
+                s.add(models.Settings(key="gemini_model", value="models/gemini-2.5-flash"))
                 await s.commit()
-                print("Seeded default Gemini model setting: gemini-1.5-flash")
+                print("Seeded default Gemini model setting: gemini-2.5-flash")
     except Exception as e:
         print(f"Gemini model setting seed error: {e}")
     
@@ -354,10 +354,10 @@ async def _get_current_gemini_model(db: AsyncSession) -> str:
     except Exception as e:
         print(f"Error fetching Gemini model setting: {e}")
     # Fallback to default
-    return "models/gemini-1.5-flash"
+    return "models/gemini-2.5-flash"
 
 
-def _call_gemini_analysis(text: str, model_name: str = "models/gemini-1.5-flash") -> dict:
+def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash") -> dict:
     """Call Gemini model synchronously and return a dict with keys:
     translated_text, sentiment, language (ISO code), language_confidence (optional)
     This wraps the previous parsing logic into one place.
@@ -720,7 +720,7 @@ async def list_gemini_models(_: dict = Depends(get_current_admin)):
 
                 
                 # Create display name from model name
-                # e.g., "models/gemini-1.5-flash" -> "Gemini 1.5 Flash"
+                # e.g., "models/gemini-2.5-flash" -> "Gemini 2.5 Flash"
                 display_name = model_name.replace('models/', '').replace('-', ' ').replace('_', ' ').title()
                 
                 # Build description with model info

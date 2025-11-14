@@ -117,6 +117,111 @@ function GeminiModelSelector({ setMsg, setErr }){
   )
 }
 
+// ProductsManager Component (extracted to prevent re-creation on App re-renders)
+function ProductsManager({ products, productsLoading, productsError, setProductMsg, setProductErr, loadProducts }){
+  const [pendingDeleteId, setPendingDeleteId] = React.useState(null)
+
+  async function remove(id){
+    try{
+      setProductMsg(null); setProductErr(null)
+      const res = await fetchWithAuth(`/api/products/${id}`, {
+        method: 'DELETE'
+      })
+      if (!res.ok){
+        let detail = 'Delete failed'
+        try { const j = await res.json(); detail = j.detail || detail } catch {}
+        throw new Error(detail)
+      }
+      await loadProducts()
+      setProductMsg('✅ Product deleted successfully')
+      setPendingDeleteId(null)
+    }catch(err){
+      setProductErr(`⚠️ ${err.message}`)
+    }
+  }
+
+  return (
+    <div>
+      {productsLoading && <div className="loading">Loading products...</div>}
+      {productsError && <div className="error-message">{productsError}</div>}
+      <ul>
+        {products.map(p => (
+          <li key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0'}}>
+            <span>{p.name}</span>
+            {pendingDeleteId === p.id ? (
+              <div style={{display:'flex', gap:8}}>
+                <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'6px 10px'}}>Cancel</button>
+                <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Confirm</button>
+              </div>
+            ) : (
+              <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Delete</button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ChangePassword Component (extracted to prevent re-creation on App re-renders)
+function ChangePassword({ setMsg, setErr }){
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e){
+    e.preventDefault()
+    setMsg(null); setErr(null)
+    // Client-side validation aligned with backend (min length 6)
+    if (newPassword.length < 6){
+      setErr('⚠️ New password must be at least 6 characters long')
+      return
+    }
+    setLoading(true)
+    try{
+      const res = await fetchWithAuth('/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      })
+      if (!res.ok){
+        let detail = 'Failed to change password'
+        try {
+          const j = await res.json();
+          if (typeof j.detail === 'string') detail = j.detail
+          else if (Array.isArray(j.detail)) detail = j.detail[0]?.msg || detail
+        } catch {}
+        throw new Error(detail)
+      }
+      setMsg('✅ Password changed successfully')
+      setCurrentPassword(''); setNewPassword('')
+    }catch(error){
+      setErr(`⚠️ ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <div className="form-group">
+        <label htmlFor="cur">Current password</label>
+        <input id="cur" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required disabled={loading} />
+      </div>
+      <div className="form-group">
+        <label htmlFor="new">New password</label>
+        <input id="new" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required disabled={loading} />
+        <div className="hint">Minimum 6 characters</div>
+      </div>
+      <button type="submit" disabled={loading}>
+        {loading ? 'Changing...' : 'Change Password'}
+      </button>
+    </form>
+  )
+}
+
 export default function App(){
   const [token, setToken] = useState(null)
   const [loginError, setLoginError] = useState(null)
@@ -416,111 +521,8 @@ export default function App(){
       await loadProducts() // refresh list everywhere
       setProductMsg('✅ Product added successfully')
     }catch(err){
-      setProductErr(err.message)
+      setProductErr(`⚠️ ${err.message}`)
     }
-  }
-
-  function ProductsManager(){
-    const [pendingDeleteId, setPendingDeleteId] = React.useState(null)
-
-    async function remove(id){
-      try{
-        setProductMsg(null); setProductErr(null)
-        const res = await fetchWithAuth(`/api/products/${id}`, {
-          method: 'DELETE'
-        })
-        if (!res.ok){
-          let detail = 'Delete failed'
-          try { const j = await res.json(); detail = j.detail || detail } catch {}
-          throw new Error(detail)
-        }
-        await loadProducts()
-        setProductMsg('✅ Product deleted successfully')
-        setPendingDeleteId(null)
-      }catch(err){
-        setProductErr(err.message)
-      }
-    }
-
-    return (
-      <div>
-        {productsLoading && <div className="loading">Loading products...</div>}
-        {productsError && <div className="error-message">{productsError}</div>}
-        <ul>
-          {products.map(p => (
-            <li key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0'}}>
-              <span>{p.name}</span>
-              {pendingDeleteId === p.id ? (
-                <div style={{display:'flex', gap:8}}>
-                  <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'6px 10px'}}>Cancel</button>
-                  <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Confirm</button>
-                </div>
-              ) : (
-                <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Delete</button>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
-  function ChangePassword({ setMsg, setErr }){
-    const [currentPassword, setCurrentPassword] = useState('')
-    const [newPassword, setNewPassword] = useState('')
-    const [loading, setLoading] = useState(false)
-
-    async function submit(e){
-      e.preventDefault()
-      setMsg(null); setErr(null)
-      // Client-side validation aligned with backend (min length 6)
-      if (newPassword.length < 6){
-        setErr('⚠️ New password must be at least 6 characters long')
-        return
-      }
-      setLoading(true)
-      try{
-        const res = await fetchWithAuth('/auth/change-password', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
-        })
-        if (!res.ok){
-          let detail = 'Failed to change password'
-          try {
-            const j = await res.json();
-            if (typeof j.detail === 'string') detail = j.detail
-            else if (Array.isArray(j.detail)) detail = j.detail[0]?.msg || detail
-          } catch {}
-          throw new Error(detail)
-        }
-        setMsg('✅ Password changed successfully')
-        setCurrentPassword(''); setNewPassword('')
-      }catch(error){
-        setErr(`⚠️ ${error.message}`)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    return (
-      <form onSubmit={submit}>
-        <div className="form-group">
-          <label htmlFor="cur">Current password</label>
-          <input id="cur" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required disabled={loading} />
-        </div>
-        <div className="form-group">
-          <label htmlFor="new">New password</label>
-          <input id="new" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required disabled={loading} />
-          <div className="hint">Minimum 6 characters</div>
-        </div>
-        <button type="submit" disabled={loading}>
-          {loading ? 'Changing...' : 'Change Password'}
-        </button>
-      </form>
-    )
   }
 
   return (
@@ -657,7 +659,14 @@ export default function App(){
                 </form>
               </div>
               <h3 style={{marginTop:12}}>Products</h3>
-              <ProductsManager />
+              <ProductsManager 
+                products={products}
+                productsLoading={productsLoading}
+                productsError={productsError}
+                setProductMsg={setProductMsg}
+                setProductErr={setProductErr}
+                loadProducts={loadProducts}
+              />
             </div>
             <div className="card">
               <h2>Gemini AI Model</h2>

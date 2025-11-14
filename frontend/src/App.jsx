@@ -259,6 +259,7 @@ export default function App(){
   const [passwordMsg, setPasswordMsg] = useState(null)
   const [passwordMsgFadingOut, setPasswordMsgFadingOut] = useState(false)
   const [passwordErr, setPasswordErr] = useState(null)
+  const [passwordErrFadingOut, setPasswordErrFadingOut] = useState(false)
   // Feedback submission messages
   const [feedbackMsg, setFeedbackMsg] = useState(null)
   const [feedbackMsgFadingOut, setFeedbackMsgFadingOut] = useState(false)
@@ -419,6 +420,24 @@ export default function App(){
       }
     }
   }, [passwordMsg])
+
+  // Auto-dismiss password change errors after 3 seconds with fade-out
+  useEffect(() => {
+    if (passwordErr) {
+      setPasswordErrFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setPasswordErrFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
+        setPasswordErr(null)
+        setPasswordErrFadingOut(false)
+      }, 3000)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
+    }
+  }, [passwordErr])
 
   // Auto-dismiss feedback submission messages after 3 seconds with fade-out
   useEffect(() => {
@@ -828,7 +847,7 @@ export default function App(){
             </div>
           )}
           {passwordErr && (
-            <div className="toast toast-error">
+            <div className={`toast toast-error ${passwordErrFadingOut ? 'fade-out' : ''}`}>
               {passwordErr}
             </div>
           )}

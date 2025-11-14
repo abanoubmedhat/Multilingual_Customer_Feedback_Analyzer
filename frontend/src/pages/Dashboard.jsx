@@ -645,16 +645,21 @@ export default function Dashboard({ token }){
                     <span className="product-tag">{f.product || '(unspecified)'}</span>
                     <button
                       className="icon-btn delete-btn"
-                      onClick={async()=>{ 
+                      onClick={async(e)=>{ 
+                        e.stopPropagation(); // Prevent checkbox selection
+                        // Temporarily set selectedIds to this single item for deletion
+                        const originalSelection = [...selectedIds];
                         setSelectedIds([f.id]); 
                         try {
                           await deleteSelected();
                         } catch(err) {
-                          // User cancelled or error occurred - do nothing
+                          // User cancelled or error occurred - restore original selection
+                          setSelectedIds(originalSelection);
                           console.log('Delete cancelled or failed:', err.message);
                         }
                       }}
-                      title="Delete feedback"
+                      title="Delete this feedback"
+                      aria-label={`Delete feedback: ${f.original_text?.substring(0, 50)}...`}
                     >
                       🗑️
                     </button>

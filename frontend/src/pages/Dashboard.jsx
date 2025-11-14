@@ -8,6 +8,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [error, setError] = useState(null)
   const [products, setProducts] = useState([])
   const [languages, setLanguages] = useState([])
+  const [sentiments, setSentiments] = useState([])
   const [sampleFeedback, setSampleFeedback] = useState([])
   const [feedbackPage, setFeedbackPage] = useState([])
   const [page, setPage] = useState(0)
@@ -15,6 +16,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [totalFeedback, setTotalFeedback] = useState(0)
   const [selectedProduct, setSelectedProduct] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
+  const [selectedSentiment, setSelectedSentiment] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
@@ -37,9 +39,14 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         const v = (f.language || "").toString().trim();
         return v === "" ? "(unspecified)" : v;
       });
+      const sentimentsRaw = feedbackList.map((f) => {
+        const v = (f.sentiment || "").toString().trim().toLowerCase();
+        return v === "" ? "(unspecified)" : v;
+      });
 
       const uniqueProducts = [...new Set(productsRaw)];
       const uniqueLanguages = [...new Set(languagesRaw)];
+      const uniqueSentiments = [...new Set(sentimentsRaw)];
 
       // Sort alphabetically but ensure "(unspecified)" appears last.
       const sortWithUnspecifiedLast = (a, b) => {
@@ -51,6 +58,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
 
       setProducts(uniqueProducts.sort(sortWithUnspecifiedLast));
       setLanguages(uniqueLanguages.sort(sortWithUnspecifiedLast));
+      setSentiments(uniqueSentiments.sort(sortWithUnspecifiedLast));
       setSampleFeedback(feedbackList.slice(0,6))
     }catch(err){
       console.error('Error loading filters:', err)
@@ -62,6 +70,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       const params = new URLSearchParams()
       if (selectedProduct) params.append('product', selectedProduct)
       if (selectedLanguage) params.append('language', selectedLanguage)
+      if (selectedSentiment) params.append('sentiment', selectedSentiment)
       params.append('skip', (p * pageSize).toString())
       params.append('limit', pageSize.toString())
       const res = await fetchWithAuth('/api/feedback?' + params.toString())
@@ -84,6 +93,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       const params = new URLSearchParams()
       if (selectedProduct) params.append('product', selectedProduct)
       if (selectedLanguage) params.append('language', selectedLanguage)
+      if (selectedSentiment) params.append('sentiment', selectedSentiment)
       if (params.toString()) url += '?' + params.toString()
       
       const res = await fetchWithAuth(url)
@@ -98,8 +108,8 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   }
 
   useEffect(()=>{ loadFilters() }, [])
-  useEffect(()=>{ load() }, [selectedProduct, selectedLanguage])
-  useEffect(()=>{ loadFeedbackPage(0) }, [selectedProduct, selectedLanguage, pageSize])
+  useEffect(()=>{ load() }, [selectedProduct, selectedLanguage, selectedSentiment])
+  useEffect(()=>{ loadFeedbackPage(0) }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize])
 
   // Initialize page size from localStorage (if previously set)
   useEffect(() => {
@@ -133,7 +143,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     }
     window.addEventListener('feedback:created', onCreated)
     return () => window.removeEventListener('feedback:created', onCreated)
-  }, [page, pageSize, selectedProduct, selectedLanguage])
+  }, [page, pageSize, selectedProduct, selectedLanguage, selectedSentiment])
 
   // Prevent body scroll when confirm modal is open
   useEffect(() => {
@@ -159,7 +169,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     }
   }, [confirmDelete])
 
-  const sentiments = ['positive', 'neutral', 'negative']
+  const sentimentTypes = ['positive', 'neutral', 'negative']
   const colors = ['positive', 'neutral', 'negative']
   const emojis = { positive: '😊', neutral: '😐', negative: '😞' }
   const totalPages = Math.ceil(totalFeedback / pageSize) || 0
@@ -185,7 +195,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setConfirmDelete({
         type: 'selected',
         count: selectedIds.length,
-        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}, Sentiment: ${selectedSentiment || 'All'}`,
         onConfirm: async () => {
           try {
             if (selectedIds.length === 1){
@@ -241,12 +251,13 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setConfirmDelete({
         type: 'all',
         count: totalFeedback,
-        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}`,
+        filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}, Sentiment: ${selectedSentiment || 'All'}`,
         onConfirm: async () => {
           try {
             const params = new URLSearchParams()
             if (selectedProduct) params.append('product', selectedProduct)
             if (selectedLanguage) params.append('language', selectedLanguage)
+            if (selectedSentiment) params.append('sentiment', selectedSentiment)
             const res = await fetchWithAuth('/api/feedback/all?' + params.toString(), {
               method: 'DELETE'
             })
@@ -374,6 +385,27 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 </select>
               </div>
 
+              <div className="filter-group">
+                <label htmlFor="sentiment-filter">Sentiment:</label>
+                <select 
+                  id="sentiment-filter"
+                  value={selectedSentiment} 
+                  onChange={(e) => {
+                    setSelectedSentiment(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
+                  className="filter-select"
+                >
+                  <option value="">All Sentiments</option>
+                  {sentiments.map(s => (
+                    <option key={s} value={s}>
+                      {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button 
                 className="filter-btn refresh-btn" 
                 onClick={()=>{
@@ -392,10 +424,11 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 onClick={()=>{
                   setSelectedProduct('');
                   setSelectedLanguage('');
+                  setSelectedSentiment('');
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={!selectedProduct && !selectedLanguage}
+                disabled={!selectedProduct && !selectedLanguage && !selectedSentiment}
                 title="Clear all filters"
               >
                 ✖
@@ -405,7 +438,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             {stats && stats.total === 0 && (
               <div className="empty-state">
                 <div className="empty-state-icon">📭</div>
-                {selectedProduct || selectedLanguage ? (
+                {selectedProduct || selectedLanguage || selectedSentiment ? (
                   <div>
                     <p>No feedback matches the current filters.</p>
                     <p style={{fontSize: '14px', color: '#666', marginTop: '8px'}}>
@@ -458,6 +491,27 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 </select>
               </div>
 
+              <div className="filter-group">
+                <label htmlFor="sentiment-filter">Sentiment:</label>
+                <select 
+                  id="sentiment-filter"
+                  value={selectedSentiment} 
+                  onChange={(e) => {
+                    setSelectedSentiment(e.target.value);
+                    setBulkMsg(null);
+                    setBulkError(null);
+                  }}
+                  className="filter-select"
+                >
+                  <option value="">All Sentiments</option>
+                  {sentiments.map(s => (
+                    <option key={s} value={s}>
+                      {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button 
                 className="filter-btn refresh-btn" 
                 onClick={()=>{
@@ -476,10 +530,11 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 onClick={()=>{
                   setSelectedProduct('');
                   setSelectedLanguage('');
+                  setSelectedSentiment('');
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={!selectedProduct && !selectedLanguage}
+                disabled={!selectedProduct && !selectedLanguage && !selectedSentiment}
                 title="Clear all filters"
               >
                 ✖
@@ -502,7 +557,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 <div className="stat-value">{stats.total}</div>
                 <div className="stat-label">Total</div>
               </div>
-              {sentiments.map(sentiment => (
+              {sentimentTypes.map(sentiment => (
                 <div key={sentiment} className={`stat-card stat-card-${sentiment}`}>
                   <div className="stat-icon">{emojis[sentiment]}</div>
                   <div className="stat-value">{stats.counts[sentiment] || 0}</div>
@@ -533,7 +588,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     negative: '#ef4444'
                   }
                   
-                  return sentiments.map(sentiment => {
+                  return sentimentTypes.map(sentiment => {
                     const percentage = stats.percentages[sentiment] || 0
                     if (percentage === 0) return null
                     
@@ -585,7 +640,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 })()}
               </svg>
               <div className="pie-legend">
-                {sentiments.map(sentiment => {
+                {sentimentTypes.map(sentiment => {
                   const count = stats.counts[sentiment] || 0
                   const percentage = stats.percentages[sentiment] || 0
                   if (count === 0) return null
@@ -703,7 +758,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 style={{width:'auto'}}
                 onClick={deleteAllFiltered}
                 disabled={totalFeedback===0}
-              >{selectedProduct || selectedLanguage ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
+              >{selectedProduct || selectedLanguage || selectedSentiment ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
               <button
                 className="btn-secondary"
                 style={{width:'auto'}}

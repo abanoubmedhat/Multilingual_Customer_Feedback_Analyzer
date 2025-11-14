@@ -116,13 +116,14 @@ button:focus-visible {
 .container {
   max-width: 1400px;
   width: 100%;
-  margin-top: 180px;
+  margin-top: 200px;
   margin-left: auto;
   margin-right: auto;
   padding-left: 20px;
   padding-right: 20px;
-  padding-top: 40px;
-  height: calc(100vh - 180px);
+  padding-top: 0px;
+  padding-bottom: 40px;
+  height: calc(100vh - 200px);
   overflow-y: auto;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
@@ -491,7 +492,7 @@ h1 {
 /* Tab Content */
 .tab-content {
   animation: fadeIn 0.4s ease-out;
-  padding-top: 20px;
+  padding-top: 0px;
 }
 
 /* Legacy full-width utility (kept for compatibility) */
@@ -581,6 +582,11 @@ h1 {
   .nav-btn.logout-btn {
     margin-left: 0;
     flex-basis: 100%;
+  }
+
+  .container {
+    margin-top: 160px;
+    height: calc(100vh - 160px);
   }
 }
 
@@ -1383,6 +1389,7 @@ button:disabled {
   align-items: center;
   gap: 12px;
   margin-bottom: 32px;
+  margin-top: 0px;
   padding: 16px 20px;
   background: white;
   border-radius: var(--radius);

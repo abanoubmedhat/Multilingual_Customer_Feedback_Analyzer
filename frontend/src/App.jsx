@@ -142,6 +142,10 @@ export default function App(){
   const [passwordMsg, setPasswordMsg] = useState(null)
   const [passwordMsgFadingOut, setPasswordMsgFadingOut] = useState(false)
   const [passwordErr, setPasswordErr] = useState(null)
+  // Feedback submission messages
+  const [feedbackMsg, setFeedbackMsg] = useState(null)
+  const [feedbackMsgFadingOut, setFeedbackMsgFadingOut] = useState(false)
+  const [feedbackErr, setFeedbackErr] = useState(null)
   // Tab navigation state
   const [activeTab, setActiveTab] = useState('dashboard')
   // Login modal state
@@ -298,6 +302,24 @@ export default function App(){
       }
     }
   }, [passwordMsg])
+
+  // Auto-dismiss feedback submission messages after 3 seconds with fade-out
+  useEffect(() => {
+    if (feedbackMsg) {
+      setFeedbackMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setFeedbackMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
+        setFeedbackMsg(null)
+        setFeedbackMsgFadingOut(false)
+      }, 3000)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
+    }
+  }, [feedbackMsg])
 
   // Load products (used by Submit and Products manager)
   async function loadProducts(){
@@ -582,7 +604,13 @@ export default function App(){
           <div className="card submit-card">
             <h2>✍️ Submit Feedback</h2>
             {/* Key forces remount on auth transitions to clear internal form state */}
-            <Submit key={token ? 'auth' : 'guest'} products={products} productsLoading={productsLoading} />
+            <Submit 
+              key={token ? 'auth' : 'guest'} 
+              products={products} 
+              productsLoading={productsLoading}
+              setFeedbackMsg={setFeedbackMsg}
+              setFeedbackErr={setFeedbackErr}
+            />
             
             {/* Admin Login Link - Subtle placement at bottom */}
             {!token && (
@@ -683,6 +711,16 @@ export default function App(){
         {passwordErr && (
           <div className="toast toast-error">
             {passwordErr}
+          </div>
+        )}
+        {feedbackMsg && (
+          <div className={`toast toast-success ${feedbackMsgFadingOut ? 'fade-out' : ''}`}>
+            {feedbackMsg}
+          </div>
+        )}
+        {feedbackErr && (
+          <div className="toast toast-error">
+            {feedbackErr}
           </div>
         )}
       </div>

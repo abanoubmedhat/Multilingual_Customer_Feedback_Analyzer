@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react'
 // Get API base URL from environment variable (set at build time)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export default function Submit({ products = [], productsLoading = false }){
+export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr }){
   const [text, setText] = useState('')
   const [product, setProduct] = useState('') // empty string keeps placeholder option selected
   const [result, setResult] = useState(null)
@@ -113,6 +113,10 @@ export default function Submit({ products = [], productsLoading = false }){
       setCompletedSteps(['analyzing', 'saving'])
       setText('')
       setProduct('')
+      // Show success toast notification
+      if (setFeedbackMsg) {
+        setFeedbackMsg('✅ Feedback stored successfully!')
+      }
       try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: savedData })) } catch {}
       setPhase(null)
     }catch(err){
@@ -252,7 +256,6 @@ export default function Submit({ products = [], productsLoading = false }){
 
       {result && (
         <>
-          <div className="success-message">✅ Feedback stored successfully!</div>
           <div className="result-box">
             <div className="result-item">
               <span className="result-label">Translated:</span>

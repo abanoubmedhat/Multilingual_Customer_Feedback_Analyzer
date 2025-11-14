@@ -145,18 +145,27 @@ function ProductsManager({ products, productsLoading, productsError, setProductM
     <div>
       {productsLoading && <div className="loading">Loading products...</div>}
       {productsError && <div className="error-message">{productsError}</div>}
-      <div style={{maxHeight: '300px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px'}}>
-        <ul style={{margin: 0}}>
+      <div style={{maxHeight: '300px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px'}}>
+        <ul style={{margin: 0, padding: 0, listStyle: 'none'}}>
           {[...products].reverse().map(p => (
-            <li key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0'}}>
-              <span>{p.name}</span>
+            <li key={p.id} style={{
+              display:'flex', 
+              justifyContent:'space-between', 
+              alignItems:'center', 
+              padding:'12px 16px',
+              marginBottom: '8px',
+              background: '#f9fafb',
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <span style={{fontSize: '15px', fontWeight: '500'}}>{p.name}</span>
               {pendingDeleteId === p.id ? (
-                <div style={{display:'flex', gap:8}}>
-                  <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'6px 10px'}}>Cancel</button>
-                  <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Confirm</button>
+                <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                  <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'8px 16px', fontSize: '14px'}}>Cancel</button>
+                  <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'8px 16px', background:'#dc2626', fontSize: '14px'}}>Confirm</button>
                 </div>
               ) : (
-                <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Delete</button>
+                <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'8px 16px', background:'#dc2626', fontSize: '14px'}}>Delete</button>
               )}
             </li>
           ))}

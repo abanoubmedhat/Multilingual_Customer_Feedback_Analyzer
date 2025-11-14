@@ -3,6 +3,9 @@ import Submit from './pages/Submit'
 import Dashboard from './pages/Dashboard'
 import { fetchWithAuth } from './utils/fetchWithAuth'
 
+// Get API base URL from environment variable (set at build time)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 export default function App(){
   const [token, setToken] = useState(null)
   const [loginError, setLoginError] = useState(null)
@@ -139,7 +142,7 @@ export default function App(){
       params.append('username', username)
       params.append('password', password)
       params.append('scope', '')
-      const res = await fetch('/auth/token', {
+      const res = await fetch(`${API_BASE_URL}/auth/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString()

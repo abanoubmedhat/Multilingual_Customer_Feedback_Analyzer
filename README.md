@@ -377,6 +377,68 @@ The project includes a complete CI/CD pipeline using **GitHub Actions** for auto
 
 ---
 
+## 🌐 Deployment
+
+Deploy your Feedback Analyzer to free hosting platforms for demos and production use.
+
+### Quick Deploy to Render.com (Recommended) ⭐
+
+**Free tier includes:**
+- PostgreSQL database
+- Auto-deploy from GitHub
+- HTTPS by default
+- 750 hours/month free
+
+**One-Click Deploy:**
+
+1. **Prepare for deployment:**
+   ```bash
+   # Windows PowerShell
+   .\deploy-render.ps1
+   
+   # Linux/Mac
+   ./deploy-render.sh
+   ```
+
+2. **Deploy on Render:**
+   - Go to [render.com](https://render.com) and sign up with GitHub
+   - Click "New +" → "Blueprint"
+   - Connect your GitHub repository
+   - Render will auto-detect `render.yaml`
+   - Add your `GOOGLE_API_KEY` when prompted
+   - Click "Apply" and wait ~5 minutes
+
+3. **Access your deployed app:**
+   - Frontend: `https://feedback-analyzer-frontend.onrender.com`
+   - Backend: `https://feedback-analyzer-backend.onrender.com`
+
+⚠️ **Note:** Free tier services sleep after 15 minutes of inactivity (30s wake-up time).
+
+### Alternative Platforms
+
+| Platform | Best For | Free Tier | Cold Starts |
+|----------|----------|-----------|-------------|
+| **Render.com** ⭐ | Quick demos | Unlimited | Yes (~30s) |
+| **Railway.app** | Active dev | $5/month credit | No |
+| **Fly.io** | Production-like | 3 VMs free | No |
+
+### Production Checklist
+
+Before deploying to production:
+
+- [ ] Change default admin password
+- [ ] Set strong SECRET_KEY
+- [ ] Configure CORS for your domain
+- [ ] Enable HTTPS
+- [ ] Set up database backups
+- [ ] Configure monitoring/alerts
+- [ ] Review rate limits
+- [ ] Set up custom domain (optional)
+
+**Complete Guide:** See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for detailed instructions, troubleshooting, and best practices.
+
+---
+
 ## 📡 API Routes & Usage
 
 ### Public Endpoints

@@ -1,25 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <!-- Background circle with gradient -->
+  <!-- Background with gradient -->
   <defs>
     <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#6366F1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
     </linearGradient>
   </defs>
   
-  <!-- Main circle -->
-  <circle cx="50" cy="50" r="45" fill="url(#grad)"/>
+  <!-- Rounded square background -->
+  <rect x="5" y="5" width="90" height="90" rx="20" fill="url(#grad)"/>
   
-  <!-- Feedback icon - speech bubble with stars -->
-  <g transform="translate(50, 50)">
-    <!-- Speech bubble -->
-    <path d="M -20 -15 Q -25 -15 -25 -10 L -25 5 Q -25 10 -20 10 L 0 10 L 5 15 L 5 10 L 20 10 Q 25 10 25 5 L 25 -10 Q 25 -15 20 -15 Z" 
-          fill="white" opacity="0.95"/>
+  <!-- Chat bubble with message lines -->
+  <g transform="translate(50, 45)">
+    <!-- Main speech bubble -->
+    <path d="M -25 -20 Q -30 -20 -30 -15 L -30 10 Q -30 15 -25 15 L -5 15 L 0 22 L 0 15 L 25 15 Q 30 15 30 10 L 30 -15 Q 30 -20 25 -20 Z" 
+          fill="white" stroke="white" stroke-width="1"/>
     
-    <!-- Stars inside bubble (feedback/rating) -->
-    <path d="M -10 -5 L -8 0 L -3 0 L -7 3 L -5 8 L -10 5 L -15 8 L -13 3 L -17 0 L -12 0 Z" 
-          fill="#4F46E5" transform="scale(0.5)"/>
-    <path d="M 10 -5 L 12 0 L 17 0 L 13 3 L 15 8 L 10 5 L 5 8 L 7 3 L 3 0 L 8 0 Z" 
-          fill="#4F46E5" transform="scale(0.5)"/>
+    <!-- Message lines inside bubble -->
+    <line x1="-20" y1="-10" x2="20" y2="-10" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-20" y1="-2" x2="15" y2="-2" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-20" y1="6" x2="22" y2="6" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Analytics/Chart bar in corner -->
+  <g transform="translate(72, 25)">
+    <rect x="-3" y="8" width="4" height="8" fill="#FCD34D" rx="1"/>
+    <rect x="2" y="3" width="4" height="13" fill="#FCD34D" rx="1"/>
+    <rect x="7" y="6" width="4" height="10" fill="#FCD34D" rx="1"/>
   </g>
 </svg>

@@ -590,6 +590,16 @@ h1 {
     height: calc(100vh - 170px);
   }
 
+  .container-no-nav {
+    padding-top: 10px;
+    margin-top: 0;
+  }
+
+  .header-inline {
+    padding: 15px 0;
+    margin-bottom: 15px;
+  }
+
   .tab-content {
     padding-top: 5px;
   }

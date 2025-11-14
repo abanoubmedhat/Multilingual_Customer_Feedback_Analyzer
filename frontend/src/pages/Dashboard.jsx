@@ -686,6 +686,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     </span>
                     <span className="language-tag">{f.language || 'unknown'}</span>
                     <span className="product-tag">{f.product || '(unspecified)'}</span>
+                    <span className="timestamp-tag" title={new Date(f.created_at).toLocaleString()}>
+                      🕒 {new Date(f.created_at).toLocaleDateString()} {new Date(f.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                    </span>
                     <button
                       className="icon-btn delete-btn"
                       onClick={(e)=>{ 

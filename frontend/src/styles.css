@@ -1677,7 +1677,8 @@ button:disabled {
 }
 
 .language-tag,
-.product-tag {
+.product-tag,
+.timestamp-tag {
   font-size: 11px;
   padding: 5px 12px;
   background: #f3f4f6;
@@ -1691,7 +1692,8 @@ button:disabled {
 }
 
 .language-tag:hover,
-.product-tag:hover {
+.product-tag:hover,
+.timestamp-tag:hover {
   background: #e5e7eb;
   transform: scale(1.05);
 }
@@ -1703,6 +1705,18 @@ button:disabled {
 
 .product-tag:hover {
   background: #bfdbfe;
+}
+
+.timestamp-tag {
+  background: #f3f4f6;
+  color: #6b7280;
+  text-transform: none;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.timestamp-tag:hover {
+  background: #e5e7eb;
 }
 
 .icon-btn {

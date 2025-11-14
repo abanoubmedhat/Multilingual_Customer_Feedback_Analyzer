@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 
+// Get API base URL from environment variable (set at build time)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 export default function Submit({ products = [], productsLoading = false }){
   const [text, setText] = useState('')
   const [product, setProduct] = useState('') // empty string keeps placeholder option selected
@@ -51,7 +54,7 @@ export default function Submit({ products = [], productsLoading = false }){
     
     try{
       // Phase 1: Analyze only (no save) using /api/translate
-      const res = await fetch('/api/translate', {
+      const res = await fetch(`${API_BASE_URL}/api/translate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -81,7 +84,7 @@ export default function Submit({ products = [], productsLoading = false }){
       
       // Phase 2: Save to database (only if not cancelled)
       setPhase('saving')
-      const saveRes = await fetch('/api/feedback', {
+      const saveRes = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

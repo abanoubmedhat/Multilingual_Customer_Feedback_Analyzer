@@ -3,10 +3,18 @@
  * 1. Automatic token refresh when server sends X-New-Token header
  * 2. Automatic logout on 401 errors (token expired)
  * 3. Token management in localStorage
+ * 
+ * Note: Uses VITE_API_URL from environment (build-time variable)
  */
+
+// Get API base URL from environment variable (set at build time)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export async function fetchWithAuth(url, options = {}) {
   const token = localStorage.getItem('jwt');
+  
+  // Prepend API base URL if url doesn't start with http
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
   
   // Add Authorization header if token exists
   const headers = {
@@ -14,7 +22,7 @@ export async function fetchWithAuth(url, options = {}) {
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
 
-  const response = await fetch(url, {
+  const response = await fetch(fullUrl, {
     ...options,
     headers
   });

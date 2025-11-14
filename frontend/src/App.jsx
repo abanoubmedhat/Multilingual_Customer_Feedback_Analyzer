@@ -17,6 +17,7 @@ export default function App(){
   const [productsLoading, setProductsLoading] = useState(false)
   const [productsError, setProductsError] = useState(null)
   const [productMsg, setProductMsg] = useState(null)
+  const [productMsgFadingOut, setProductMsgFadingOut] = useState(false)
   const [productErr, setProductErr] = useState(null)
   // Tab navigation state
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -103,13 +104,21 @@ export default function App(){
     }
   }, [token])
 
-  // Auto-dismiss product success messages after 3 seconds
+  // Auto-dismiss product success messages after 3 seconds with fade-out
   useEffect(() => {
     if (productMsg) {
-      const timer = setTimeout(() => {
+      setProductMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setProductMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
         setProductMsg(null)
+        setProductMsgFadingOut(false)
       }, 3000)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
     }
   }, [productMsg])
 
@@ -555,7 +564,7 @@ export default function App(){
                     <button type="submit" style={{width:'auto'}}>Add</button>
                   </div>
                 </form>
-                {productMsg && <div className="success-message" style={{marginTop:8}}>{productMsg}</div>}
+                {productMsg && <div className={`success-message ${productMsgFadingOut ? 'fade-out' : ''}`} style={{marginTop:8}}>{productMsg}</div>}
                 {productErr && <div className="error-message" style={{marginTop:8}}>{productErr}</div>}
               </div>
               <h3 style={{marginTop:12}}>Products</h3>

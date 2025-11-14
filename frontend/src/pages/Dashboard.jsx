@@ -654,18 +654,31 @@ export default function Dashboard({ token }){
                     <span className="product-tag">{f.product || '(unspecified)'}</span>
                     <button
                       className="icon-btn delete-btn"
-                      onClick={async(e)=>{ 
+                      onClick={(e)=>{ 
                         e.stopPropagation(); // Prevent checkbox selection
-                        // Temporarily set selectedIds to this single item for deletion
-                        const originalSelection = [...selectedIds];
-                        setSelectedIds([f.id]); 
-                        try {
-                          await deleteSelected();
-                        } catch(err) {
-                          // User cancelled or error occurred - restore original selection
-                          setSelectedIds(originalSelection);
-                          console.log('Delete cancelled or failed:', err.message);
-                        }
+                        setBulkError(null); 
+                        setBulkMsg(null);
+                        // Direct confirmation without selecting
+                        setConfirmDelete({
+                          type: 'single',
+                          count: 1,
+                          filter: `Feedback ID: ${f.id}`,
+                          onConfirm: async () => {
+                            try {
+                              const res = await fetchWithAuth(`/api/feedback/${f.id}`, { method: 'DELETE' });
+                              if (!res.ok) throw new Error('Failed to delete feedback');
+                              setBulkMsg('Deleted 1 feedback entry.');
+                              await refreshAll(false);
+                              setConfirmDelete(null);
+                            } catch(e) {
+                              setBulkError(e.message);
+                              setConfirmDelete(null);
+                            }
+                          },
+                          onCancel: () => { 
+                            setConfirmDelete(null);
+                          }
+                        });
                       }}
                       title="Delete this feedback"
                       aria-label={`Delete feedback: ${f.original_text?.substring(0, 50)}...`}

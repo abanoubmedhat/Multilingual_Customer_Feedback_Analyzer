@@ -9,6 +9,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export default function App(){
   const [token, setToken] = useState(null)
   const [loginError, setLoginError] = useState(null)
+  const [loginLoading, setLoginLoading] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   // Products state lifted to App so new items appear instantly in all views
@@ -136,6 +137,7 @@ export default function App(){
   async function handleLogin(e){
     e.preventDefault()
     setLoginError(null)
+    setLoginLoading(true)
     try{
       const params = new URLSearchParams()
       params.append('grant_type', 'password')
@@ -157,6 +159,8 @@ export default function App(){
       setShowLoginModal(false) // Close modal on success
     }catch(err){
       setLoginError(err.message)
+    } finally {
+      setLoginLoading(false)
     }
   }
 
@@ -362,6 +366,7 @@ export default function App(){
     const [newPassword, setNewPassword] = useState('')
     const [msg, setMsg] = useState(null)
     const [err, setErr] = useState(null)
+    const [loading, setLoading] = useState(false)
 
     async function submit(e){
       e.preventDefault()
@@ -371,6 +376,7 @@ export default function App(){
         setErr('New password must be at least 6 characters long')
         return
       }
+      setLoading(true)
       try{
         const res = await fetchWithAuth('/auth/change-password', {
           method: 'POST',
@@ -392,6 +398,8 @@ export default function App(){
         setCurrentPassword(''); setNewPassword('')
       }catch(error){
         setErr(error.message)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -399,14 +407,16 @@ export default function App(){
       <form onSubmit={submit}>
         <div className="form-group">
           <label htmlFor="cur">Current password</label>
-          <input id="cur" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required />
+          <input id="cur" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required disabled={loading} />
         </div>
         <div className="form-group">
           <label htmlFor="new">New password</label>
-          <input id="new" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required />
+          <input id="new" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required disabled={loading} />
           <div className="hint">Minimum 6 characters</div>
         </div>
-        <button type="submit">Change Password</button>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Changing...' : 'Change Password'}
+        </button>
         {msg && <div className="success-message" style={{marginTop:8}}>{msg}</div>}
         {err && <div className="error-message" style={{marginTop:8}}>{err}</div>}
       </form>
@@ -581,7 +591,9 @@ export default function App(){
                   required
                 />
               </div>
-              <button type="submit" className="btn-primary">Login</button>
+              <button type="submit" className="btn-primary" disabled={loginLoading}>
+                {loginLoading ? 'Logging in...' : 'Login'}
+              </button>
               {loginError && <div className="error-message" role="alert">{loginError}</div>}
             </form>
             

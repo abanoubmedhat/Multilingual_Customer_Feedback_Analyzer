@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 
-export default function Dashboard({ token }){
+export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,9 +17,6 @@ export default function Dashboard({ token }){
   const [selectedLanguage, setSelectedLanguage] = useState('')
   const [selectedIds, setSelectedIds] = useState([])
   const [showTranslated, setShowTranslated] = useState(false)
-  const [bulkError, setBulkError] = useState(null)
-  const [bulkMsg, setBulkMsg] = useState(null)
-  const [bulkMsgFadingOut, setBulkMsgFadingOut] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
 
   async function loadFilters(){
@@ -138,24 +135,6 @@ export default function Dashboard({ token }){
     return () => window.removeEventListener('feedback:created', onCreated)
   }, [page, pageSize, selectedProduct, selectedLanguage])
 
-  // Auto-dismiss success message after 3 seconds with fade-out
-  useEffect(() => {
-    if (bulkMsg) {
-      setBulkMsgFadingOut(false)
-      const fadeTimer = setTimeout(() => {
-        setBulkMsgFadingOut(true)
-      }, 2700) // Start fade-out 300ms before removal
-      const removeTimer = setTimeout(() => {
-        setBulkMsg(null)
-        setBulkMsgFadingOut(false)
-      }, 3000)
-      return () => {
-        clearTimeout(fadeTimer)
-        clearTimeout(removeTimer)
-      }
-    }
-  }, [bulkMsg])
-
   // Prevent body scroll when confirm modal is open
   useEffect(() => {
     if (confirmDelete) {
@@ -213,7 +192,7 @@ export default function Dashboard({ token }){
               const id = selectedIds[0]
               const res = await fetchWithAuth(`/api/feedback/${id}`, { method: 'DELETE' })
               if (!res.ok) throw new Error('Failed to delete feedback')
-              setBulkMsg('Deleted 1 feedback entry.')
+              setBulkMsg('✅ Deleted 1 feedback entry.')
             } else {
               const res = await fetchWithAuth('/api/feedback', {
                 method: 'DELETE',
@@ -234,13 +213,13 @@ export default function Dashboard({ token }){
               }
               const data = await res.json()
               const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
-              setBulkMsg(`Deleted ${deletedCount} feedback entries.`)
+              setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             }
             setSelectedIds([])
             await refreshAll(false)
             resolve() // Resolve the promise on success
           } catch(e){
-            setBulkError(e.message)
+            setBulkError(`⚠️ ${e.message}`)
             reject(e) // Reject on error
           } finally {
             setConfirmDelete(null)
@@ -286,7 +265,7 @@ export default function Dashboard({ token }){
             }
             const data = await res.json()
             const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
-            setBulkMsg(`Deleted ${deletedCount} feedback entries.`)
+            setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             setSelectedIds([])
             // Clear filters since the filtered items no longer exist
             setSelectedProduct('')
@@ -323,7 +302,7 @@ export default function Dashboard({ token }){
             
             resolve() // Resolve the promise on success
           } catch(e){
-            setBulkError(e.message)
+            setBulkError(`⚠️ ${e.message}`)
             reject(e) // Reject on error
           } finally {
             setConfirmDelete(null)
@@ -667,11 +646,11 @@ export default function Dashboard({ token }){
                             try {
                               const res = await fetchWithAuth(`/api/feedback/${f.id}`, { method: 'DELETE' });
                               if (!res.ok) throw new Error('Failed to delete feedback');
-                              setBulkMsg('Deleted 1 feedback entry.');
+                              setBulkMsg('✅ Deleted 1 feedback entry.');
                               await refreshAll(false);
                               setConfirmDelete(null);
                             } catch(e) {
-                              setBulkError(e.message);
+                              setBulkError(`⚠️ ${e.message}`);
                               setConfirmDelete(null);
                             }
                           },
@@ -731,8 +710,6 @@ export default function Dashboard({ token }){
                 onClick={()=>setShowTranslated(s=>!s)}
                 disabled={feedbackPage.length===0}
               >{showTranslated ? 'Hide Translated' : 'Show Translated'}</button>
-              {bulkMsg && <div className={`success-message ${bulkMsgFadingOut ? 'fade-out' : ''}`} style={{margin:0}}>{bulkMsg}</div>}
-              {bulkError && <div className="error-message" style={{margin:0}}>{bulkError}</div>}
             </div>
 
             {confirmDelete && createPortal(

@@ -19,6 +19,18 @@ export default function App(){
   const [productMsg, setProductMsg] = useState(null)
   const [productMsgFadingOut, setProductMsgFadingOut] = useState(false)
   const [productErr, setProductErr] = useState(null)
+  // Dashboard bulk operation messages
+  const [bulkMsg, setBulkMsg] = useState(null)
+  const [bulkMsgFadingOut, setBulkMsgFadingOut] = useState(false)
+  const [bulkError, setBulkError] = useState(null)
+  // Gemini model selector messages
+  const [geminiMsg, setGeminiMsg] = useState(null)
+  const [geminiMsgFadingOut, setGeminiMsgFadingOut] = useState(false)
+  const [geminiErr, setGeminiErr] = useState(null)
+  // Change password messages
+  const [passwordMsg, setPasswordMsg] = useState(null)
+  const [passwordMsgFadingOut, setPasswordMsgFadingOut] = useState(false)
+  const [passwordErr, setPasswordErr] = useState(null)
   // Tab navigation state
   const [activeTab, setActiveTab] = useState('dashboard')
   // Login modal state
@@ -121,6 +133,60 @@ export default function App(){
       }
     }
   }, [productMsg])
+
+  // Auto-dismiss bulk operation messages after 3 seconds with fade-out
+  useEffect(() => {
+    if (bulkMsg) {
+      setBulkMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setBulkMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
+        setBulkMsg(null)
+        setBulkMsgFadingOut(false)
+      }, 3000)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
+    }
+  }, [bulkMsg])
+
+  // Auto-dismiss Gemini model messages after 3 seconds with fade-out
+  useEffect(() => {
+    if (geminiMsg) {
+      setGeminiMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setGeminiMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
+        setGeminiMsg(null)
+        setGeminiMsgFadingOut(false)
+      }, 3000)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
+    }
+  }, [geminiMsg])
+
+  // Auto-dismiss password change messages after 3 seconds with fade-out
+  useEffect(() => {
+    if (passwordMsg) {
+      setPasswordMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setPasswordMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
+        setPasswordMsg(null)
+        setPasswordMsgFadingOut(false)
+      }, 3000)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
+    }
+  }, [passwordMsg])
 
   // Load products (used by Submit and Products manager)
   async function loadProducts(){
@@ -266,12 +332,11 @@ export default function App(){
     )
   }
 
-  function GeminiModelSelector(){
+  function GeminiModelSelector({ setMsg, setErr }){
     const [models, setModels] = useState([])
     const [currentModel, setCurrentModel] = useState('')
     const [loading, setLoading] = useState(true)
-    const [msg, setMsg] = useState(null)
-    const [err, setErr] = useState(null)
+    const [loadError, setLoadError] = useState(null)
 
     useEffect(() => {
       loadModels()
@@ -284,14 +349,14 @@ export default function App(){
         if (res.ok){
           const data = await res.json()
           setModels(data)
-          setErr(null)
+          setLoadError(null)
         } else {
           const error = await res.json().catch(() => ({ detail: 'Failed to load models' }))
-          setErr(error.detail || 'Failed to load models from Google API')
+          setLoadError(error.detail || 'Failed to load models from Google API')
         }
       }catch(error){
         console.error('Error loading models:', error)
-        setErr('Network error: Could not connect to server')
+        setLoadError('Network error: Could not connect to server')
       }finally{
         setLoading(false)
       }
@@ -327,10 +392,9 @@ export default function App(){
         }
         
         setCurrentModel(newModel)
-        setMsg('Model updated successfully')
-        setTimeout(() => setMsg(null), 3000)
+        setMsg('✅ Model updated successfully')
       }catch(error){
-        setErr(error.message)
+        setErr(`⚠️ ${error.message}`)
       }
     }
 
@@ -338,13 +402,13 @@ export default function App(){
       return <div>Loading available models from Google API...</div>
     }
 
-    if (err && models.length === 0){
+    if (loadError && models.length === 0){
       return (
         <div>
           <div className="error-message" role="alert">
             <strong>⚠️ Error Loading Models</strong>
-            <p>{err}</p>
-            <button onClick={() => { setLoading(true); setErr(null); loadModels(); }} style={{marginTop: 8}}>
+            <p>{loadError}</p>
+            <button onClick={() => { setLoading(true); setLoadError(null); loadModels(); }} style={{marginTop: 8}}>
               Retry
             </button>
           </div>
@@ -374,17 +438,13 @@ export default function App(){
             {models.find(m => m.name === currentModel)?.description || 'Select a model'}
           </div>
         </div>
-        {msg && <div className="success-message" style={{marginTop:8}}>{msg}</div>}
-        {err && <div className="error-message" style={{marginTop:8}}>{err}</div>}
       </div>
     )
   }
 
-  function ChangePassword(){
+  function ChangePassword({ setMsg, setErr }){
     const [currentPassword, setCurrentPassword] = useState('')
     const [newPassword, setNewPassword] = useState('')
-    const [msg, setMsg] = useState(null)
-    const [err, setErr] = useState(null)
     const [loading, setLoading] = useState(false)
 
     async function submit(e){
@@ -392,7 +452,7 @@ export default function App(){
       setMsg(null); setErr(null)
       // Client-side validation aligned with backend (min length 6)
       if (newPassword.length < 6){
-        setErr('New password must be at least 6 characters long')
+        setErr('⚠️ New password must be at least 6 characters long')
         return
       }
       setLoading(true)
@@ -413,10 +473,10 @@ export default function App(){
           } catch {}
           throw new Error(detail)
         }
-        setMsg('Password changed successfully')
+        setMsg('✅ Password changed successfully')
         setCurrentPassword(''); setNewPassword('')
       }catch(error){
-        setErr(error.message)
+        setErr(`⚠️ ${error.message}`)
       } finally {
         setLoading(false)
       }
@@ -436,8 +496,6 @@ export default function App(){
         <button type="submit" disabled={loading}>
           {loading ? 'Changing...' : 'Change Password'}
         </button>
-        {msg && <div className="success-message" style={{marginTop:8}}>{msg}</div>}
-        {err && <div className="error-message" style={{marginTop:8}}>{err}</div>}
       </form>
     )
   }
@@ -547,7 +605,11 @@ export default function App(){
         {token && activeTab === 'dashboard' && (
           <div className="card full-width">
             <h2>Dashboard</h2>
-            <Dashboard token={token} />
+            <Dashboard 
+              token={token} 
+              setBulkMsg={setBulkMsg}
+              setBulkError={setBulkError}
+            />
           </div>
         )}
 
@@ -564,20 +626,62 @@ export default function App(){
                     <button type="submit" style={{width:'auto'}}>Add</button>
                   </div>
                 </form>
-                {productMsg && <div className={`success-message ${productMsgFadingOut ? 'fade-out' : ''}`} style={{marginTop:8}}>{productMsg}</div>}
-                {productErr && <div className="error-message" style={{marginTop:8}}>{productErr}</div>}
               </div>
               <h3 style={{marginTop:12}}>Products</h3>
               <ProductsManager />
             </div>
             <div className="card">
               <h2>Gemini AI Model</h2>
-              <GeminiModelSelector />
+              <GeminiModelSelector setMsg={setGeminiMsg} setErr={setGeminiErr} />
             </div>
             <div className="card">
               <h2>Change Password</h2>
-              <ChangePassword />
+              <ChangePassword setMsg={setPasswordMsg} setErr={setPasswordErr} />
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Toast Notification Container */}
+      <div className="toast-container">
+        {productMsg && (
+          <div className={`toast toast-success ${productMsgFadingOut ? 'fade-out' : ''}`}>
+            {productMsg}
+          </div>
+        )}
+        {productErr && (
+          <div className="toast toast-error">
+            {productErr}
+          </div>
+        )}
+        {bulkMsg && (
+          <div className={`toast toast-success ${bulkMsgFadingOut ? 'fade-out' : ''}`}>
+            {bulkMsg}
+          </div>
+        )}
+        {bulkError && (
+          <div className="toast toast-error">
+            {bulkError}
+          </div>
+        )}
+        {geminiMsg && (
+          <div className={`toast toast-success ${geminiMsgFadingOut ? 'fade-out' : ''}`}>
+            {geminiMsg}
+          </div>
+        )}
+        {geminiErr && (
+          <div className="toast toast-error">
+            {geminiErr}
+          </div>
+        )}
+        {passwordMsg && (
+          <div className={`toast toast-success ${passwordMsgFadingOut ? 'fade-out' : ''}`}>
+            {passwordMsg}
+          </div>
+        )}
+        {passwordErr && (
+          <div className="toast toast-error">
+            {passwordErr}
           </div>
         )}
       </div>

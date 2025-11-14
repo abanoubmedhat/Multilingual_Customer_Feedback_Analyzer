@@ -481,24 +481,25 @@ export default function App(){
         {/* Submit Tab - Always visible for non-authenticated, or when selected */}
         {(!token || activeTab === 'submit') && (
           <div className="card submit-card">
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
-              <h2 style={{margin: 0}}>✍️ Submit Feedback</h2>
-              {/* Login Button for Non-Authenticated Users */}
-              {!token && (
+            <h2>✍️ Submit Feedback</h2>
+            {/* Key forces remount on auth transitions to clear internal form state */}
+            <Submit key={token ? 'auth' : 'guest'} products={products} productsLoading={productsLoading} />
+            
+            {/* Admin Login Link - Subtle placement at bottom */}
+            {!token && (
+              <div style={{textAlign: 'center', marginTop: '20px'}}>
                 <button 
-                  className="login-trigger-btn"
+                  className="admin-link"
                   onClick={() => {
                     setShowLoginModal(true)
-                    setSessionExpiredMsg(null) // Clear expired message when opening login
+                    setSessionExpiredMsg(null)
                   }}
                   aria-label="Open admin login"
                 >
-                  🔐 Admin Login
+                  Admin? Sign in here →
                 </button>
-              )}
-            </div>
-            {/* Key forces remount on auth transitions to clear internal form state */}
-            <Submit key={token ? 'auth' : 'guest'} products={products} productsLoading={productsLoading} />
+              </div>
+            )}
           </div>
         )}
 

@@ -489,6 +489,7 @@ export default function App(){
       if (!data.access_token) throw new Error('No token returned')
       localStorage.setItem('jwt', data.access_token)
       setToken(data.access_token)
+      setActiveTab('dashboard') // Switch to dashboard after successful login
       setUsername('')
       setPassword('')
       setShowLoginModal(false) // Close modal on success

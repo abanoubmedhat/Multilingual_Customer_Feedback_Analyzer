@@ -930,6 +930,10 @@ button:disabled {
   gap: 8px;
 }
 
+.success-message.fade-out {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
 .error-message {
   background: var(--danger-light);
   border-left: 4px solid var(--danger);
@@ -952,6 +956,15 @@ button:disabled {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 

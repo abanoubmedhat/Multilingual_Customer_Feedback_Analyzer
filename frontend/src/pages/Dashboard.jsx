@@ -19,6 +19,7 @@ export default function Dashboard({ token }){
   const [showTranslated, setShowTranslated] = useState(false)
   const [bulkError, setBulkError] = useState(null)
   const [bulkMsg, setBulkMsg] = useState(null)
+  const [bulkMsgFadingOut, setBulkMsgFadingOut] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
 
   async function loadFilters(){
@@ -137,13 +138,21 @@ export default function Dashboard({ token }){
     return () => window.removeEventListener('feedback:created', onCreated)
   }, [page, pageSize, selectedProduct, selectedLanguage])
 
-  // Auto-dismiss success message after 3 seconds
+  // Auto-dismiss success message after 3 seconds with fade-out
   useEffect(() => {
     if (bulkMsg) {
-      const timer = setTimeout(() => {
+      setBulkMsgFadingOut(false)
+      const fadeTimer = setTimeout(() => {
+        setBulkMsgFadingOut(true)
+      }, 2700) // Start fade-out 300ms before removal
+      const removeTimer = setTimeout(() => {
         setBulkMsg(null)
+        setBulkMsgFadingOut(false)
       }, 3000)
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(fadeTimer)
+        clearTimeout(removeTimer)
+      }
     }
   }, [bulkMsg])
 
@@ -709,7 +718,7 @@ export default function Dashboard({ token }){
                 onClick={()=>setShowTranslated(s=>!s)}
                 disabled={feedbackPage.length===0}
               >{showTranslated ? 'Hide Translated' : 'Show Translated'}</button>
-              {bulkMsg && <div className="success-message" style={{margin:0}}>{bulkMsg}</div>}
+              {bulkMsg && <div className={`success-message ${bulkMsgFadingOut ? 'fade-out' : ''}`} style={{margin:0}}>{bulkMsg}</div>}
               {bulkError && <div className="error-message" style={{margin:0}}>{bulkError}</div>}
             </div>
 

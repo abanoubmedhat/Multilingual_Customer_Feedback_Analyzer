@@ -39,6 +39,7 @@ body {
   min-height: 100vh;
   padding: 16px 12px; /* reduce top/bottom padding to use space more efficiently */
   line-height: 1.6;
+  overflow-y: scroll;
 }
 
 /* Skip Link for Accessibility */
@@ -114,14 +115,27 @@ button:focus-visible {
 .container {
   max-width: 1400px;
   width: 100%;
-  animation: fadeIn 0.5s ease-out;
+  margin-top: 180px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.container-no-nav {
+  margin-top: 120px;
 }
 
 /* Header */
 .header {
   text-align: center;
-  margin-bottom: 48px;
-  margin-top: -20px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;
+  padding: 20px;
 }
 
 .header h1 {
@@ -177,13 +191,17 @@ h1 {
 .main-nav {
   display: flex;
   gap: 8px;
-  padding: 12px;
+  padding: 12px 20px;
   background: white;
-  border-radius: var(--radius);
-  margin-bottom: 24px;
   box-shadow: var(--shadow);
   flex-wrap: wrap;
-  animation: slideUp 0.4s ease-out;
+  position: fixed;
+  top: 100px;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 99;
+  justify-content: center;
 }
 
 .nav-btn {
@@ -1732,6 +1750,9 @@ li button {
   flex-direction: column;
   gap: 12px;
   pointer-events: none;
+  isolation: isolate;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .toast {

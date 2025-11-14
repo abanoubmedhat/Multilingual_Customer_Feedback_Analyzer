@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Submit from './pages/Submit'
 import Dashboard from './pages/Dashboard'
 import { fetchWithAuth } from './utils/fetchWithAuth'
@@ -144,21 +145,23 @@ function ProductsManager({ products, productsLoading, productsError, setProductM
     <div>
       {productsLoading && <div className="loading">Loading products...</div>}
       {productsError && <div className="error-message">{productsError}</div>}
-      <ul>
-        {products.map(p => (
-          <li key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0'}}>
-            <span>{p.name}</span>
-            {pendingDeleteId === p.id ? (
-              <div style={{display:'flex', gap:8}}>
-                <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'6px 10px'}}>Cancel</button>
-                <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Confirm</button>
-              </div>
-            ) : (
-              <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Delete</button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <div style={{maxHeight: '300px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px'}}>
+        <ul style={{margin: 0}}>
+          {[...products].reverse().map(p => (
+            <li key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0'}}>
+              <span>{p.name}</span>
+              {pendingDeleteId === p.id ? (
+                <div style={{display:'flex', gap:8}}>
+                  <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'6px 10px'}}>Cancel</button>
+                  <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Confirm</button>
+                </div>
+              ) : (
+                <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'6px 10px', background:'#dc2626'}}>Delete</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   )
 }
@@ -526,13 +529,13 @@ export default function App(){
   }
 
   return (
-    <div className="container">
+    <>
       {/* Skip Navigation Link */}
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
 
-      {/* Header with Title and Login Button */}
+      {/* Header with Title and Login Button - Fixed at top */}
       <div className="header">
         <h1>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
@@ -558,14 +561,7 @@ export default function App(){
         </h1>
       </div>
 
-      {/* Session Expired Message */}
-      {sessionExpiredMsg && (
-        <div className="error-message" style={{marginBottom: '20px', textAlign: 'center'}}>
-          ⚠️ {sessionExpiredMsg}
-        </div>
-      )}
-      
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - Fixed below header */}
       {token && (
         <nav className="main-nav" role="navigation" aria-label="Main navigation">
           <button 
@@ -599,7 +595,16 @@ export default function App(){
         </nav>
       )}
 
-      {/* Tab Content */}
+      {/* Scrollable Content Container */}
+      <div className={token ? "container" : "container container-no-nav"}>
+        {/* Session Expired Message */}
+        {sessionExpiredMsg && (
+          <div className="error-message" style={{marginBottom: '20px', textAlign: 'center'}}>
+            ⚠️ {sessionExpiredMsg}
+          </div>
+        )}
+
+        {/* Tab Content */}
       <div id="main-content" className="tab-content" role="main">
         {/* Submit Tab - Always visible for non-authenticated, or when selected */}
         {(!token || activeTab === 'submit') && (
@@ -647,7 +652,7 @@ export default function App(){
         {/* Settings Tab - Only for authenticated users */}
         {token && activeTab === 'settings' && (
           <div className="settings-layout">
-            <div className="card">
+            <div className="card" style={{minHeight: '450px'}}>
               <h2>Manage Products</h2>
               <div className="form-group">
                 <form onSubmit={handleAddProduct}>
@@ -676,60 +681,6 @@ export default function App(){
               <h2>Change Password</h2>
               <ChangePassword setMsg={setPasswordMsg} setErr={setPasswordErr} />
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Toast Notification Container */}
-      <div className="toast-container">
-        {productMsg && (
-          <div className={`toast toast-success ${productMsgFadingOut ? 'fade-out' : ''}`}>
-            {productMsg}
-          </div>
-        )}
-        {productErr && (
-          <div className="toast toast-error">
-            {productErr}
-          </div>
-        )}
-        {bulkMsg && (
-          <div className={`toast toast-success ${bulkMsgFadingOut ? 'fade-out' : ''}`}>
-            {bulkMsg}
-          </div>
-        )}
-        {bulkError && (
-          <div className="toast toast-error">
-            {bulkError}
-          </div>
-        )}
-        {geminiMsg && (
-          <div className={`toast toast-success ${geminiMsgFadingOut ? 'fade-out' : ''}`}>
-            {geminiMsg}
-          </div>
-        )}
-        {geminiErr && (
-          <div className="toast toast-error">
-            {geminiErr}
-          </div>
-        )}
-        {passwordMsg && (
-          <div className={`toast toast-success ${passwordMsgFadingOut ? 'fade-out' : ''}`}>
-            {passwordMsg}
-          </div>
-        )}
-        {passwordErr && (
-          <div className="toast toast-error">
-            {passwordErr}
-          </div>
-        )}
-        {feedbackMsg && (
-          <div className={`toast toast-success ${feedbackMsgFadingOut ? 'fade-out' : ''}`}>
-            {feedbackMsg}
-          </div>
-        )}
-        {feedbackErr && (
-          <div className="toast toast-error">
-            {feedbackErr}
           </div>
         )}
       </div>
@@ -797,6 +748,64 @@ export default function App(){
           </div>
         </>
       )}
-    </div>
+      
+      {/* Toast Notification Container - Rendered via Portal */}
+      {createPortal(
+        <div className="toast-container">
+          {productMsg && (
+            <div className={`toast toast-success ${productMsgFadingOut ? 'fade-out' : ''}`}>
+              {productMsg}
+            </div>
+          )}
+          {productErr && (
+            <div className="toast toast-error">
+              {productErr}
+            </div>
+          )}
+          {bulkMsg && (
+            <div className={`toast toast-success ${bulkMsgFadingOut ? 'fade-out' : ''}`}>
+              {bulkMsg}
+            </div>
+          )}
+          {bulkError && (
+            <div className="toast toast-error">
+              {bulkError}
+            </div>
+          )}
+          {geminiMsg && (
+            <div className={`toast toast-success ${geminiMsgFadingOut ? 'fade-out' : ''}`}>
+              {geminiMsg}
+            </div>
+          )}
+          {geminiErr && (
+            <div className="toast toast-error">
+              {geminiErr}
+            </div>
+          )}
+          {passwordMsg && (
+            <div className={`toast toast-success ${passwordMsgFadingOut ? 'fade-out' : ''}`}>
+              {passwordMsg}
+            </div>
+          )}
+          {passwordErr && (
+            <div className="toast toast-error">
+              {passwordErr}
+            </div>
+          )}
+          {feedbackMsg && (
+            <div className={`toast toast-success ${feedbackMsgFadingOut ? 'fade-out' : ''}`}>
+              {feedbackMsg}
+            </div>
+          )}
+          {feedbackErr && (
+            <div className="toast toast-error">
+              {feedbackErr}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+      </div>
+    </>
   )
 }

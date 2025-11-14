@@ -137,6 +137,16 @@ export default function Dashboard({ token }){
     return () => window.removeEventListener('feedback:created', onCreated)
   }, [page, pageSize, selectedProduct, selectedLanguage])
 
+  // Auto-dismiss success message after 3 seconds
+  useEffect(() => {
+    if (bulkMsg) {
+      const timer = setTimeout(() => {
+        setBulkMsg(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [bulkMsg])
+
   // Prevent body scroll when confirm modal is open
   useEffect(() => {
     if (confirmDelete) {

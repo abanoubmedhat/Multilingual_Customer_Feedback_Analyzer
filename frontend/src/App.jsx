@@ -145,7 +145,7 @@ function ProductsManager({ products, productsLoading, productsError, setProductM
     <div>
       {productsLoading && <div className="loading">Loading products...</div>}
       {productsError && <div className="error-message">{productsError}</div>}
-      <div style={{maxHeight: '300px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px'}}>
+      <div style={{maxHeight: '300px', overflowY: 'scroll', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px'}}>
         <ul style={{margin: 0, padding: 0, listStyle: 'none'}}>
           {[...products].reverse().map(p => (
             <li key={p.id} style={{

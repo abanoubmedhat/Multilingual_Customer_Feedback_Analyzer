@@ -36,10 +36,11 @@ body {
   color: var(--text);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   background-attachment: fixed;
-  min-height: 100vh;
-  padding: 16px 12px; /* reduce top/bottom padding to use space more efficiently */
+  height: 100vh;
+  margin: 0;
+  padding: 0;
   line-height: 1.6;
-  overflow-y: scroll;
+  overflow: hidden;
 }
 
 /* Skip Link for Accessibility */
@@ -120,11 +121,21 @@ button:focus-visible {
   margin-right: auto;
   padding-left: 20px;
   padding-right: 20px;
+  padding-top: 40px;
+  height: calc(100vh - 180px);
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .container-no-nav {
   margin-top: 0;
-  padding-top: 20px;
+  padding-top: 120px;
+  height: 100vh;
 }
 
 /* Header - Fixed for admin mode */
@@ -480,6 +491,7 @@ h1 {
 /* Tab Content */
 .tab-content {
   animation: fadeIn 0.4s ease-out;
+  padding-top: 20px;
 }
 
 /* Legacy full-width utility (kept for compatibility) */
@@ -1364,8 +1376,7 @@ button:disabled {
 }
 
 .filter-section {
-  position: sticky;
-  top: 16px;
+  position: relative;
   z-index: 10;
   display: flex;
   flex-wrap: wrap;

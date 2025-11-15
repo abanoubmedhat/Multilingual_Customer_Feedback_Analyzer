@@ -16,11 +16,11 @@ export async function fetchWithAuth(url, options = {}) {
   // Prepend API base URL if url doesn't start with http
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
   
-  // Add Authorization header if token exists
-  const headers = {
-    ...options.headers,
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-  };
+  // Build headers object properly - merge existing headers with auth header
+  const headers = new Headers(options.headers || {});
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   const response = await fetch(fullUrl, {
     ...options,

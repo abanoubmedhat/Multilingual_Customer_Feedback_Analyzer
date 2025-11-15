@@ -5,6 +5,8 @@ import Dashboard from '../pages/Dashboard'
 
 describe('Dashboard Component', () => {
   const mockToken = 'test-token'
+  const mockSetBulkMsg = vi.fn()
+  const mockSetBulkError = vi.fn()
 
   beforeEach(() => {
     // Reset fetch mock
@@ -16,6 +18,10 @@ describe('Dashboard Component', () => {
         headers: new Headers(),
       })
     )
+    
+    // Reset mock functions
+    mockSetBulkMsg.mockClear()
+    mockSetBulkError.mockClear()
   })
 
   const setupMockFetch = (statsData, feedbackData) => {
@@ -42,7 +48,7 @@ describe('Dashboard Component', () => {
 
   it('renders loading state initially', () => {
     setupMockFetch({}, { total: 0, items: [] })
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     expect(screen.getByText(/Loading stats/i)).toBeInTheDocument()
   })
@@ -55,7 +61,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, { total: 100, items: [] })
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText('100')).toBeInTheDocument() // Total count
@@ -73,7 +79,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, { total: 0, items: [] })
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument()
@@ -112,7 +118,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText('Great product!')).toBeInTheDocument()
@@ -146,7 +152,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByLabelText(/Product:/i)).toBeInTheDocument()
@@ -188,7 +194,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText(/Page 1 of/i)).toBeInTheDocument()
@@ -220,7 +226,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByLabelText(/Per page:/i)).toBeInTheDocument()
@@ -287,7 +293,7 @@ describe('Dashboard Component', () => {
       return Promise.resolve({ ok: false })
     })
     
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText('Test feedback')).toBeInTheDocument()
@@ -340,7 +346,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText('Bonjour!')).toBeInTheDocument()
@@ -365,7 +371,7 @@ describe('Dashboard Component', () => {
       })
     )
     
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByText(/Error:/i)).toBeInTheDocument()
@@ -382,7 +388,7 @@ describe('Dashboard Component', () => {
     }
     
     setupMockFetch(mockStats, { total: 1, items: [] })
-    render(<Dashboard token={mockToken} />)
+    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {
       expect(screen.getByTitle('Refresh data')).toBeInTheDocument()

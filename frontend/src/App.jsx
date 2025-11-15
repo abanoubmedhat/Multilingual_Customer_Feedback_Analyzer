@@ -689,7 +689,7 @@ export default function App(){
                   }}
                   aria-label="Open admin login"
                 >
-                  Admin? Sign in here →
+                  Admin Login
                 </button>
               </div>
             )}

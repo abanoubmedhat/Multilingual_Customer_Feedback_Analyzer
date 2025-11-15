@@ -33,14 +33,16 @@ describe('fetchWithAuth Utility', () => {
     
     await fetchWithAuth('/api/test')
     
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/test',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-token',
-        }),
-      })
-    )
+    // Check that fetch was called
+    expect(global.fetch).toHaveBeenCalled()
+    
+    // Get the headers from the actual call
+    const callArgs = global.fetch.mock.calls[0]
+    const headers = callArgs[1]?.headers
+    
+    // Headers object has .get() method
+    expect(headers).toBeInstanceOf(Headers)
+    expect(headers.get('Authorization')).toBe('Bearer test-token')
   })
 
   it('refreshes token when X-New-Token header is present', async () => {
@@ -95,15 +97,14 @@ describe('fetchWithAuth Utility', () => {
       headers: { 'Content-Type': 'application/json' },
     })
     
-    expect(global.fetch).toHaveBeenCalledWith(
-      '/api/test',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer test-token',
-          'Content-Type': 'application/json',
-        }),
-      })
-    )
+    // Get the headers from the actual call
+    const callArgs = global.fetch.mock.calls[0]
+    const headers = callArgs[1]?.headers
+    
+    // Headers object has .get() method
+    expect(headers).toBeInstanceOf(Headers)
+    expect(headers.get('Authorization')).toBe('Bearer test-token')
+    expect(headers.get('Content-Type')).toBe('application/json')
   })
 
   it('works without token (unauthenticated requests)', async () => {
@@ -116,8 +117,12 @@ describe('fetchWithAuth Utility', () => {
     await fetchWithAuth('/api/public')
     
     expect(global.fetch).toHaveBeenCalled()
-    // Should not include Authorization header
+    
+    // Get the headers from the actual call
     const callArgs = global.fetch.mock.calls[0]
-    expect(callArgs[1]?.headers?.Authorization).toBeUndefined()
+    const headers = callArgs[1]?.headers
+    
+    // Should not include Authorization header
+    expect(headers.get('Authorization')).toBeNull()
   })
 })

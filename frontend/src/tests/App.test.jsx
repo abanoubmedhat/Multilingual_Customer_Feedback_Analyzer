@@ -23,7 +23,9 @@ describe('App Component', () => {
 
   it('shows admin login button when not authenticated', () => {
     render(<App />)
-    expect(screen.getByText(/Admin Login/i)).toBeInTheDocument()
+    // Button uses an aria-label for accessibility; match that instead of
+    // exact visible text which may be more conversational.
+    expect(screen.getByLabelText(/Open admin login/i)).toBeInTheDocument()
   })
 
   it('handles login form submission', async () => {
@@ -63,8 +65,8 @@ describe('App Component', () => {
 
     render(<App />)
     
-    // Click Admin Login button
-    const loginBtn = screen.getByText(/Admin Login/i)
+  // Click Admin Login button (match by aria-label)
+  const loginBtn = screen.getByLabelText(/Open admin login/i)
     await user.click(loginBtn)
 
     // Fill in credentials
@@ -103,7 +105,7 @@ describe('App Component', () => {
 
     render(<App />)
     
-    const loginBtn = screen.getByText(/Admin Login/i)
+  const loginBtn = screen.getByLabelText(/Open admin login/i)
     await user.click(loginBtn)
 
     await waitFor(() => {

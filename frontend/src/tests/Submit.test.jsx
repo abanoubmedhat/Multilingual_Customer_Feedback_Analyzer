@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Submit from '../pages/Submit'
 
@@ -210,6 +210,83 @@ describe('Submit Component', () => {
     
     await waitFor(() => {
       expect(screen.getByText(/API error: 500/i)).toBeInTheDocument()
+    })
+  })
+
+  it('displays saved result after successful submit', async () => {
+    const user = userEvent.setup()
+    // Translate response
+    let call = 0
+    global.fetch.mockImplementation((url) => {
+      call += 1
+      if (url.includes('/api/translate')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            translated_text: 'Hola',
+            sentiment: 'neutral',
+            language: 'es',
+          }),
+        })
+      }
+      if (url.includes('/api/feedback')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: 42,
+            translated_text: 'Hola',
+            sentiment: 'neutral',
+            language: 'es',
+            product: 'Product A'
+          }),
+        })
+      }
+      return Promise.resolve({ ok: false })
+    })
+
+    render(<Submit products={mockProducts} productsLoading={false} />)
+    const productSelect = screen.getByLabelText(/Product/i)
+    await user.selectOptions(productSelect, 'Product A')
+    const textarea = screen.getByLabelText(/Feedback text/i)
+    await user.type(textarea, 'Hola')
+    const submitBtn = screen.getByRole('button', { name: /Submit & Analyze/i })
+    await user.click(submitBtn)
+
+    // Wait for result to appear
+    await waitFor(() => {
+      // Narrow the search to the result box to avoid matching the select option
+      const resultBox = screen.getByText(/Translated:/i).closest('.result-box')
+      expect(resultBox).toBeTruthy()
+      const withinResult = within(resultBox)
+      expect(withinResult.getByText('Hola')).toBeInTheDocument()
+      expect(withinResult.getByText(/neutral/i)).toBeInTheDocument()
+      expect(withinResult.getByText('es')).toBeInTheDocument()
+      expect(withinResult.getByText('Product A')).toBeInTheDocument()
+    })
+  })
+
+  it('shows save error detail when save fails', async () => {
+    const user = userEvent.setup()
+    global.fetch.mockImplementation((url) => {
+      if (url.includes('/api/translate')) {
+        return Promise.resolve({ ok: true, json: async () => ({ translated_text: 'X', sentiment: 'positive', language: 'en' }) })
+      }
+      if (url.includes('/api/feedback')) {
+        return Promise.resolve({ ok: false, status: 400, json: async () => ({ detail: 'DB Insert failed' }) })
+      }
+      return Promise.resolve({ ok: false })
+    })
+
+    render(<Submit products={mockProducts} productsLoading={false} />)
+    const productSelect = screen.getByLabelText(/Product/i)
+    await user.selectOptions(productSelect, 'Product A')
+    const textarea = screen.getByLabelText(/Feedback text/i)
+    await user.type(textarea, 'Test')
+    const submitBtn = screen.getByRole('button', { name: /Submit & Analyze/i })
+    await user.click(submitBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText(/DB Insert failed/i)).toBeInTheDocument()
     })
   })
 })

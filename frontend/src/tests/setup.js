@@ -32,6 +32,17 @@ beforeEach(() => {
   localStorageMock.clear.mockClear()
 })
 
+// Reduce noisy React act(...) warnings in CI logs while keeping real errors
+const originalConsoleError = console.error
+console.error = (...args) => {
+  const msg = args[0]
+  if (typeof msg === 'string' && msg.includes('not wrapped in act(')) {
+    // Suppress act warnings to keep CI logs clean
+    return
+  }
+  originalConsoleError(...args)
+}
+
 // Mock window APIs
 global.dispatchEvent = vi.fn()
 global.CustomEvent = class CustomEvent extends Event {

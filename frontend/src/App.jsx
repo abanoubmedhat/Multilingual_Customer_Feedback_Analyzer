@@ -12,11 +12,53 @@ function GeminiModelSelector({ setMsg, setErr }){
   const [models, setModels] = useState([])
   const [currentModel, setCurrentModel] = useState('')
   const [loading, setLoading] = useState(true)
+  const [pendingAnalysis, setPendingAnalysis] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
-    loadModels()
-    loadCurrentModel()
+    // Check if feedback analysis is pending (from Submit page localStorage)
+    function checkPending() {
+      const pending = localStorage.getItem('pendingFeedbackAnalysis')
+      if (pending) {
+        try {
+          const data = JSON.parse(pending)
+          if (data.phase === 'analyzing' || data.phase === 'saving') {
+            setPendingAnalysis(true)
+            setLoading(false)
+            return true
+          }
+        } catch {}
+      }
+      setPendingAnalysis(false)
+      return false
+    }
+    if (!checkPending()) {
+      setLoading(true)
+      loadModels()
+      loadCurrentModel()
+    }
+    // Listen for feedback analysis completion event
+    function handleFeedbackCreated() {
+      // Feedback analysis finished, refresh models
+      setPendingAnalysis(false)
+      setLoading(true)
+      loadModels()
+      loadCurrentModel()
+    }
+    window.addEventListener('feedback:created', handleFeedbackCreated)
+    // Listen for storage changes to detect when analysis completes (fallback for other tabs)
+    function handleStorage() {
+      if (!checkPending()) {
+        setLoading(true)
+        loadModels()
+        loadCurrentModel()
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('feedback:created', handleFeedbackCreated)
+      window.removeEventListener('storage', handleStorage)
+    }
   }, [])
 
   async function loadModels(){
@@ -74,10 +116,17 @@ function GeminiModelSelector({ setMsg, setErr }){
     }
   }
 
+  if (pendingAnalysis) {
+    return (
+      <div className="pending-message" style={{padding: '16px', background: '#FEF3C7', borderRadius: '8px', color: '#92400E'}}>
+        <strong>⏳ Model list is pending</strong>
+        <p>The API is busy analyzing feedback. Model selection will be available once analysis completes.</p>
+      </div>
+    )
+  }
   if (loading){
     return <div>Loading available models from Google API...</div>
   }
-
   if (loadError && models.length === 0){
     return (
       <div>

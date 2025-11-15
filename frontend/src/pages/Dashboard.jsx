@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 
 export default function Dashboard({ token, setBulkMsg, setBulkError }){
+  // State declarations
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -20,13 +21,17 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [selectedIds, setSelectedIds] = useState([])
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
-  
   // Visibility toggles for optional fields
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showFieldsMenu, setShowFieldsMenu] = useState(false)
   // Anchor refs for preserving scroll position relative to the Show Fields button
   const fieldsBtnRef = useRef(null)
   const lastBtnTopRef = useRef(null)
+
+  // Reset selected feedbacks when page changes
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page]);
 
   async function loadFilters(){
     try{

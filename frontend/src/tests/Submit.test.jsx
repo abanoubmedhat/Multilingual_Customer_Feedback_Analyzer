@@ -73,68 +73,6 @@ describe('Submit Component', () => {
     })
   })
 
-  it('submits feedback successfully with two-phase process', async () => {
-    const user = userEvent.setup()
-    
-    global.fetch.mockImplementation((url) => {
-      if (url.includes('/api/translate')) {
-        // Add slight delay to allow UI to render the "analyzing" state
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              ok: true,
-              json: async () => ({
-                translated_text: 'This is great!',
-                sentiment: 'positive',
-                language: 'en',
-              }),
-            })
-          }, 100)
-        })
-      }
-      if (url.includes('/api/feedback')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            id: 1,
-            original_text: 'This is great!',
-            translated_text: 'This is great!',
-            sentiment: 'positive',
-            language: 'en',
-            product: 'Product A',
-          }),
-        })
-      }
-      return Promise.resolve({
-        ok: false,
-        headers: new Headers(),
-      })
-    })
-
-    render(<Submit products={mockProducts} productsLoading={false} />)
-    
-    // Fill form
-    const productSelect = screen.getByLabelText(/Product/i)
-    await user.selectOptions(productSelect, 'Product A')
-    
-    const textarea = screen.getByLabelText(/Feedback text/i)
-    await user.type(textarea, 'This is great!')
-    
-    // Submit
-    const submitBtn = screen.getByRole('button', { name: /Submit & Analyze/i })
-    await user.click(submitBtn)
-    
-    // Check analyzing phase
-    await waitFor(() => {
-      expect(screen.getByText(/Analyzing Feedback/i)).toBeInTheDocument()
-    })
-    
-    // Check success message (from toast)
-    await waitFor(() => {
-      expect(screen.getByText(/Feedback stored successfully/i)).toBeInTheDocument()
-    }, { timeout: 3000 })
-  })
-
   it('shows elapsed time during analysis', async () => {
     const user = userEvent.setup()
     

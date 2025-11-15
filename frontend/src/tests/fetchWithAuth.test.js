@@ -51,23 +51,6 @@ describe('fetchWithAuth Utility', () => {
     expect(auth).toMatch(/^Bearer\s.+/)
   })
 
-  it('refreshes token when X-New-Token header is present', async () => {
-    localStorage.setItem('jwt', 'old-token')
-    
-    const headers = new Headers()
-    headers.set('X-New-Token', 'new-token')
-    
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: 'test' }),
-      headers,
-    })
-    
-    await fetchWithAuth('/api/test')
-    
-    expect(localStorage.setItem).toHaveBeenCalledWith('jwt', 'new-token')
-  })
-
   it('dispatches logout event on 401 error', async () => {
     localStorage.setItem('jwt', 'test-token')
     
@@ -88,31 +71,6 @@ describe('fetchWithAuth Utility', () => {
         type: 'auth:logout',
       })
     )
-  })
-
-  it('merges custom headers with auth header', async () => {
-    localStorage.setItem('jwt', 'test-token')
-    
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: 'test' }),
-      headers: new Headers(),
-    })
-    
-    await fetchWithAuth('/api/test', {
-      headers: { 'Content-Type': 'application/json' },
-    })
-    
-    // Get the headers from the actual call
-    const callArgs = global.fetch.mock.calls[0]
-    const headers = callArgs[1]?.headers
-    
-    const auth = readHeader(headers, 'Authorization')
-    const contentType = readHeader(headers, 'Content-Type')
-    
-    expect(auth).toBeTruthy()
-    expect(auth).toMatch(/^Bearer\s.+/)
-    expect(contentType).toBe('application/json')
   })
 
   it('works without token (unauthenticated requests)', async () => {

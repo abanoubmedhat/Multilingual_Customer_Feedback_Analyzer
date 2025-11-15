@@ -42,6 +42,7 @@ describe('Dashboard Component', () => {
       }
       return Promise.resolve({
         ok: false,
+        headers: new Headers(),
       })
     })
   }
@@ -273,8 +274,11 @@ describe('Dashboard Component', () => {
       limit: 5,
     }
     
+    let feedbackDeleted = false
+    
     global.fetch.mockImplementation((url, options) => {
       if (url.includes('/api/feedback/1') && options?.method === 'DELETE') {
+        feedbackDeleted = true
         return Promise.resolve({
           ok: true,
           json: async () => ({ status: 'deleted', id: 1 }),
@@ -284,18 +288,18 @@ describe('Dashboard Component', () => {
       if (url.includes('/api/stats')) {
         return Promise.resolve({
           ok: true,
-          json: async () => mockStats,
+          json: async () => feedbackDeleted ? { total: 0, counts: {}, percentages: {} } : mockStats,
           headers: new Headers(),
         })
       }
       if (url.includes('/api/feedback')) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ ...mockFeedback, items: [] }),
+          json: async () => feedbackDeleted ? { total: 0, items: [], skip: 0, limit: 5 } : mockFeedback,
           headers: new Headers(),
         })
       }
-      return Promise.resolve({ ok: false })
+      return Promise.resolve({ ok: false, headers: new Headers() })
     })
     
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
@@ -393,7 +397,23 @@ describe('Dashboard Component', () => {
       percentages: { positive: 100 },
     }
     
-    setupMockFetch(mockStats, { total: 1, items: [] })
+    const mockFeedback = {
+      total: 1,
+      items: [
+        {
+          id: 1,
+          original_text: 'Test feedback',
+          translated_text: 'Test feedback',
+          sentiment: 'positive',
+          language: 'en',
+          product: 'Product A',
+        },
+      ],
+      skip: 0,
+      limit: 5,
+    }
+    
+    setupMockFetch(mockStats, mockFeedback)
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
     await waitFor(() => {

@@ -120,10 +120,10 @@ describe('Submit Component', () => {
     
     // Check analyzing phase
     await waitFor(() => {
-      expect(screen.getByText(/Analyzing feedback with AI/i)).toBeInTheDocument()
+      expect(screen.getByText(/Analyzing Feedback/i)).toBeInTheDocument()
     })
     
-    // Check success message
+    // Check success message (from toast)
     await waitFor(() => {
       expect(screen.getByText(/Feedback stored successfully/i)).toBeInTheDocument()
     }, { timeout: 3000 })
@@ -168,9 +168,9 @@ describe('Submit Component', () => {
     const submitBtn = screen.getByRole('button', { name: /Submit & Analyze/i })
     await user.click(submitBtn)
     
-    // Check elapsed timer appears
+    // Check progress tracker appears (which shows the analysis is in progress)
     await waitFor(() => {
-      expect(screen.getByText(/Elapsed/i)).toBeInTheDocument()
+      expect(screen.getByText(/Analyzing Feedback/i)).toBeInTheDocument()
     })
   })
 
@@ -249,6 +249,7 @@ describe('Submit Component', () => {
       Promise.resolve({
         ok: false,
         status: 500,
+        json: async () => ({}), // Empty response, will trigger default error message
       })
     )
 

@@ -3,11 +3,6 @@ import { fetchWithAuth } from '../utils/fetchWithAuth'
 
 describe('fetchWithAuth Utility', () => {
   beforeEach(() => {
-    // Reset localStorage
-    localStorage.getItem.mockReturnValue(null)
-    localStorage.setItem.mockClear()
-    localStorage.removeItem.mockClear()
-    
     // Reset fetch mock
     global.fetch.mockReset()
     global.fetch.mockImplementation(() =>

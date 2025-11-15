@@ -166,7 +166,6 @@ export default function Submit({ products = [], productsLoading = false, setFeed
           id="product"
           value={product}
           onChange={e=>setProduct(e.target.value)}
-          required
         >
           <option value="" disabled>Select a product</option>
           {products.map(p => (

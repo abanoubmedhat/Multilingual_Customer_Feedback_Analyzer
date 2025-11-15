@@ -7,14 +7,30 @@ afterEach(() => {
   cleanup()
 })
 
-// Mock localStorage
+// Mock localStorage with actual storage
+const storage = {}
 const localStorageMock = {
-  getItem: vi.fn(() => null),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+  getItem: vi.fn((key) => storage[key] || null),
+  setItem: vi.fn((key, value) => {
+    storage[key] = value
+  }),
+  removeItem: vi.fn((key) => {
+    delete storage[key]
+  }),
+  clear: vi.fn(() => {
+    Object.keys(storage).forEach(key => delete storage[key])
+  }),
 }
 global.localStorage = localStorageMock
+
+// Reset storage before each test
+beforeEach(() => {
+  Object.keys(storage).forEach(key => delete storage[key])
+  localStorageMock.getItem.mockClear()
+  localStorageMock.setItem.mockClear()
+  localStorageMock.removeItem.mockClear()
+  localStorageMock.clear.mockClear()
+})
 
 // Mock window APIs
 global.dispatchEvent = vi.fn()

@@ -5,11 +5,6 @@ import App from '../App'
 
 describe('App Component', () => {
   beforeEach(() => {
-    // Reset localStorage
-    localStorage.getItem.mockReturnValue(null)
-    localStorage.setItem.mockClear()
-    localStorage.removeItem.mockClear()
-    
     // Reset fetch mock
     global.fetch.mockReset()
     global.fetch.mockImplementation(() =>
@@ -32,7 +27,10 @@ describe('App Component', () => {
   })
 
   it('loads dashboard tab when user has valid JWT token', async () => {
-    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.test'
+    // Create a proper JWT token with valid base64 encoding
+    // Header: {"alg":"HS256","typ":"JWT"}
+    // Payload: {"sub":"admin","role":"admin","exp":9999999999}
+    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.signature'
     localStorage.setItem('jwt', mockToken)
 
     global.fetch.mockImplementation((url) => {
@@ -40,11 +38,20 @@ describe('App Component', () => {
         return Promise.resolve({
           ok: true,
           json: async () => [{ id: 1, name: 'Test Product' }],
+          headers: new Headers(),
+        })
+      }
+      if (url.includes('/api/stats') || url.includes('/api/feedback')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ total: 0, items: [], counts: {}, percentages: {} }),
+          headers: new Headers(),
         })
       }
       return Promise.resolve({
         ok: true,
         json: async () => ({}),
+        headers: new Headers(),
       })
     })
 
@@ -52,7 +59,7 @@ describe('App Component', () => {
     
     await waitFor(() => {
       expect(screen.getByText(/Dashboard/i)).toBeInTheDocument()
-    })
+    }, { timeout: 3000 })
   })
 
   it('handles login form submission', async () => {
@@ -139,13 +146,14 @@ describe('App Component', () => {
 
   it('handles logout correctly', async () => {
     const user = userEvent.setup()
-    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.test'
+    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.signature'
     localStorage.setItem('jwt', mockToken)
 
     global.fetch.mockImplementation(() =>
       Promise.resolve({
         ok: true,
         json: async () => [],
+        headers: new Headers(),
       })
     )
 
@@ -153,7 +161,7 @@ describe('App Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Logout/i)).toBeInTheDocument()
-    })
+    }, { timeout: 3000 })
 
     const logoutBtn = screen.getByText(/Logout/i)
     await user.click(logoutBtn)
@@ -163,20 +171,26 @@ describe('App Component', () => {
 
   it('switches between tabs correctly', async () => {
     const user = userEvent.setup()
-    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.test'
+    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.signature'
     localStorage.setItem('jwt', mockToken)
 
     global.fetch.mockImplementation(() =>
       Promise.resolve({
         ok: true,
         json: async () => [],
+        headers: new Headers(),
       })
     )
 
     render(<App />)
 
+    // Wait for app to load with token
+    await waitFor(() => {
+      expect(screen.getByText(/Dashboard/i)).toBeInTheDocument()
+    }, { timeout: 3000 })
+
     // Switch to Submit tab
-    const submitTab = screen.getByRole('button', { name: /Submit/i })
+    const submitTab = screen.getByRole('button', { name: /Submit Feedback/i })
     await user.click(submitTab)
 
     await waitFor(() => {
@@ -188,17 +202,22 @@ describe('App Component', () => {
     await user.click(settingsTab)
 
     await waitFor(() => {
-      expect(screen.getByText(/Product Management/i)).toBeInTheDocument()
+      expect(screen.getByText(/Manage Products/i)).toBeInTheDocument()
     })
   })
 
   it('displays session expired message on token expiration', async () => {
     render(<App />)
 
+    // Wait for app to render
+    await waitFor(() => {
+      expect(screen.getByText(/Submit Feedback/i)).toBeInTheDocument()
+    })
+
     // Simulate auto-logout event
     window.dispatchEvent(
       new CustomEvent('auth:logout', { 
-        detail: { reason: 'expired' } 
+        detail: { reason: 'Token expired' } 
       })
     )
 

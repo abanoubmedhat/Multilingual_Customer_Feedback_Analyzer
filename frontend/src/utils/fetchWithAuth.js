@@ -27,8 +27,8 @@ export async function fetchWithAuth(url, options = {}) {
     headers
   });
 
-  // Check for refreshed token in response headers
-  const newToken = response.headers.get('X-New-Token');
+  // Check for refreshed token in response headers (only if headers exist)
+  const newToken = response.headers?.get('X-New-Token');
   if (newToken) {
     console.log('🔄 Token refreshed automatically');
     localStorage.setItem('jwt', newToken);

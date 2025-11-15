@@ -187,7 +187,7 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       </div>
 
       <div style={{display:'flex', gap:8}}>
-        <button type="submit" disabled={loading || !text.trim()}>
+        <button type="submit" disabled={loading}>
           {phase === 'analyzing' && '🔍 Analyzing...'}
           {phase === 'saving' && '💾 Saving...'}
           {!phase && !loading && '🚀 Submit & Analyze'}

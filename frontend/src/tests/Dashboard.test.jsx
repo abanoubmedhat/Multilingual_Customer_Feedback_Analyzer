@@ -368,6 +368,7 @@ describe('Dashboard Component', () => {
       Promise.resolve({
         ok: false,
         status: 500,
+        headers: new Headers(),
       })
     )
     

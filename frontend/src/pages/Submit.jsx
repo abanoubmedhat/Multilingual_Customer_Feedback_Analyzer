@@ -4,15 +4,32 @@ import React, { useEffect, useState, useRef } from 'react'
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr }){
+  // Persisted state keys
+  const STORAGE_KEY = 'pendingFeedbackAnalysis'
   const [text, setText] = useState('')
-  const [product, setProduct] = useState('') // empty string keeps placeholder option selected
+  const [product, setProduct] = useState('')
   const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false) // retained for backward compatibility
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [phase, setPhase] = useState(null) // null | 'analyzing' | 'saving'
+  const [phase, setPhase] = useState(null)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [analysisResult, setAnalysisResult] = useState(null) // Store analysis before saving
-  const [completedSteps, setCompletedSteps] = useState([]) // Track completed steps
+  const [analysisResult, setAnalysisResult] = useState(null)
+  const [completedSteps, setCompletedSteps] = useState([])
+  // Restore pending analysis state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        const data = JSON.parse(saved)
+        if (data.phase) setPhase(data.phase)
+        if (data.text) setText(data.text)
+        if (data.product) setProduct(data.product)
+        if (data.analysisResult) setAnalysisResult(data.analysisResult)
+        if (Array.isArray(data.completedSteps)) setCompletedSteps(data.completedSteps)
+        if (data.error) setError(data.error)
+      } catch {}
+    }
+  }, [])
   const startRef = useRef(0)
   const abortRef = useRef(null)
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
@@ -39,12 +56,21 @@ export default function Submit({ products = [], productsLoading = false, setFeed
     setAnalysisResult(null)
     setCompletedSteps([])
     cancelReasonRef.current = null
+    // Save initial state to localStorage
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      phase: 'analyzing',
+      text,
+      product,
+      analysisResult: null,
+      completedSteps: [],
+      error: null
+    }))
 
     if (!text.trim()) { setError('Please enter feedback text'); return }
     if (!product) { setError('Please select a product'); return }
 
-    setLoading(true)
-    setPhase('analyzing')
+  setLoading(true)
+  setPhase('analyzing')
     const controller = new AbortController()
     abortRef.current = controller
     const timeoutId = setTimeout(() => {
@@ -81,6 +107,15 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       // Store analysis result and mark step as completed
       setAnalysisResult(analysisData)
       setCompletedSteps(['analyzing'])
+      // Persist analysis result
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        phase: 'saving',
+        text,
+        product,
+        analysisResult: analysisData,
+        completedSteps: ['analyzing'],
+        error: null
+      }))
       
       // Phase 2: Save to database (only if not cancelled)
       setPhase('saving')
@@ -119,22 +154,35 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       }
       try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: savedData })) } catch {}
       setPhase(null)
+      // Clear persisted state
+      localStorage.removeItem(STORAGE_KEY)
     }catch(err){
       clearTimeout(timeoutId)
       // Distinguish abort causes
+      let errorMsg = ''
       if (err.name === 'AbortError' || err.message === 'Aborted') {
         if (cancelReasonRef.current === 'timeout') {
-          setError(`Analysis timed out (${(TIMEOUT_MS/1000)}s). Please retry.`)
+          errorMsg = `Analysis timed out (${(TIMEOUT_MS/1000)}s). Please retry.`
         } else if (cancelReasonRef.current === 'user') {
-          setError('Analysis cancelled - no feedback was saved.')
+          errorMsg = 'Analysis cancelled - no feedback was saved.'
         } else {
-          setError('Analysis aborted unexpectedly.')
+          errorMsg = 'Analysis aborted unexpectedly.'
         }
       } else {
-        setError(err.message || 'Failed to submit feedback')
+        errorMsg = err.message || 'Failed to submit feedback'
       }
+      setError(errorMsg)
       setPhase(null)
       setAnalysisResult(null)
+      // Persist error state
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        phase: null,
+        text,
+        product,
+        analysisResult: null,
+        completedSteps: [],
+        error: errorMsg
+      }))
     }finally{
       setLoading(false)
       abortRef.current = null
@@ -150,6 +198,15 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       setAnalysisResult(null)
       setCompletedSteps([])
       setError('Analysis cancelled - no feedback was saved.')
+      // Persist cancel state
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        phase: null,
+        text,
+        product,
+        analysisResult: null,
+        completedSteps: [],
+        error: 'Analysis cancelled - no feedback was saved.'
+      }))
     }
   }
 

@@ -75,7 +75,7 @@ jobs:
       - name: Run frontend quick tests
         working-directory: ./frontend
         run: |
-          npm ci
+          npm install
           npm test -- --run --reporter=verbose src/tests/App.test.jsx
   
   # PR size check

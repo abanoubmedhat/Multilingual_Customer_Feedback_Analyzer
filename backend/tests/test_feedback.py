@@ -66,16 +66,16 @@ async def test_create_feedback_unknown_product(client: AsyncClient, mock_gemini_
 
 @pytest.mark.asyncio
 async def test_create_feedback_without_product(client: AsyncClient, mock_gemini_response):
-    """Test feedback creation without product (optional field)."""
+    """Test feedback creation without product (should return validation error)."""
     with patch("main._call_gemini_analysis", return_value=mock_gemini_response):
         response = await client.post(
             "/api/feedback",
             json={"text": "Test feedback without product"}
         )
     
-    assert response.status_code == 200
-    data = response.json()
-    assert data["product"] is None or data["product"] == ""
+    # Product is required, so should get 422 validation error
+    assert response.status_code == 422
+    assert "product" in str(response.json()).lower()
 
 
 @pytest.mark.asyncio

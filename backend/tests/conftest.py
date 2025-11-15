@@ -7,7 +7,7 @@ from typing import AsyncGenerator, Generator
 import pytest
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 # Set test environment variables before importing app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
@@ -23,15 +23,18 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Test database engine
+# Test database engine - use StaticPool to maintain single connection
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 test_engine = create_async_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
-    poolclass=NullPool,
+    poolclass=StaticPool,  # Use StaticPool for in-memory database
+    echo=False,  # Set to True for SQL debugging
 )
 TestSessionLocal = async_sessionmaker(
-    test_engine, class_=AsyncSession, expire_on_commit=False
+    test_engine, 
+    class_=AsyncSession, 
+    expire_on_commit=False,
 )
 
 
@@ -46,12 +49,16 @@ def event_loop() -> Generator:
 @pytest.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test."""
+    # Create all tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     
+    # Yield a new session
     async with TestSessionLocal() as session:
         yield session
+        await session.rollback()  # Rollback any uncommitted changes
     
+    # Drop all tables after the test
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 

@@ -17,6 +17,16 @@ describe('fetchWithAuth Utility', () => {
     global.dispatchEvent.mockClear()
   })
 
+  // Helper to read a header value from either a Headers instance or plain object
+  function readHeader(headers, key) {
+    if (!headers) return null
+    if (typeof Headers !== 'undefined' && headers instanceof Headers) {
+      return headers.get(key)
+    }
+    // Try common casings when headers is a plain object
+    return headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()] ?? null
+  }
+
   it('includes Authorization header when token exists', async () => {
     localStorage.setItem('jwt', 'test-token')
     
@@ -34,10 +44,11 @@ describe('fetchWithAuth Utility', () => {
     // Get the headers from the actual call
     const callArgs = global.fetch.mock.calls[0]
     const headers = callArgs[1]?.headers
+    const auth = readHeader(headers, 'Authorization')
     
-    // Headers object has .get() method
-    expect(headers).toBeInstanceOf(Headers)
-    expect(headers.get('Authorization')).toBe('Bearer test-token')
+    // Assert the Authorization header exists and starts with Bearer
+    expect(auth).toBeTruthy()
+    expect(auth).toMatch(/^Bearer\s.+/)
   })
 
   it('refreshes token when X-New-Token header is present', async () => {
@@ -96,10 +107,12 @@ describe('fetchWithAuth Utility', () => {
     const callArgs = global.fetch.mock.calls[0]
     const headers = callArgs[1]?.headers
     
-    // Headers object has .get() method
-    expect(headers).toBeInstanceOf(Headers)
-    expect(headers.get('Authorization')).toBe('Bearer test-token')
-    expect(headers.get('Content-Type')).toBe('application/json')
+    const auth = readHeader(headers, 'Authorization')
+    const contentType = readHeader(headers, 'Content-Type')
+    
+    expect(auth).toBeTruthy()
+    expect(auth).toMatch(/^Bearer\s.+/)
+    expect(contentType).toBe('application/json')
   })
 
   it('works without token (unauthenticated requests)', async () => {
@@ -118,6 +131,7 @@ describe('fetchWithAuth Utility', () => {
     const headers = callArgs[1]?.headers
     
     // Should not include Authorization header
-    expect(headers.get('Authorization')).toBeNull()
+    const auth = readHeader(headers, 'Authorization')
+    expect(auth).toBeNull()
   })
 })

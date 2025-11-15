@@ -65,22 +65,35 @@ describe('App Component', () => {
   it('handles login form submission', async () => {
     const user = userEvent.setup()
     
+    // Use a valid JWT token
+    const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6OTk5OTk5OTk5OX0.signature'
+    
     global.fetch.mockImplementation((url) => {
       if (url.includes('/auth/token')) {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ access_token: 'test-token' }),
+          json: async () => ({ access_token: mockToken }),
+          headers: new Headers(),
         })
       }
       if (url.includes('/api/products')) {
         return Promise.resolve({
           ok: true,
           json: async () => [],
+          headers: new Headers(),
+        })
+      }
+      if (url.includes('/api/stats') || url.includes('/api/feedback')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ total: 0, items: [], counts: {}, percentages: {} }),
+          headers: new Headers(),
         })
       }
       return Promise.resolve({
         ok: true,
         json: async () => ({}),
+        headers: new Headers(),
       })
     })
 
@@ -104,7 +117,7 @@ describe('App Component', () => {
 
     // Check that token is stored
     await waitFor(() => {
-      expect(localStorage.setItem).toHaveBeenCalledWith('jwt', 'test-token')
+      expect(localStorage.setItem).toHaveBeenCalledWith('jwt', mockToken)
     })
   })
 

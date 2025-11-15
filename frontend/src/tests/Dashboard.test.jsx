@@ -67,7 +67,12 @@ describe('Dashboard Component', () => {
       expect(screen.getByText('100')).toBeInTheDocument() // Total count
       expect(screen.getByText('60')).toBeInTheDocument() // Positive count
       expect(screen.getByText('30')).toBeInTheDocument() // Neutral count
-      expect(screen.getByText('10')).toBeInTheDocument() // Negative count
+      // Use getAllByText to handle multiple elements with "10", then check for the stat card
+      const elements = screen.getAllByText('10')
+      expect(elements.length).toBeGreaterThan(0)
+      // Find the one in a stat-value div (not an option)
+      const statValue = elements.find(el => el.className === 'stat-value')
+      expect(statValue).toBeInTheDocument()
     })
   })
 

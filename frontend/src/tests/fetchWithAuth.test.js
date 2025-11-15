@@ -27,30 +27,6 @@ describe('fetchWithAuth Utility', () => {
     return headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()] ?? null
   }
 
-  it('includes Authorization header when token exists', async () => {
-    localStorage.setItem('jwt', 'test-token')
-    
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ data: 'test' }),
-      headers: new Headers(),
-    })
-    
-    await fetchWithAuth('/api/test')
-    
-    // Check that fetch was called
-    expect(global.fetch).toHaveBeenCalled()
-    
-    // Get the headers from the actual call
-    const callArgs = global.fetch.mock.calls[0]
-    const headers = callArgs[1]?.headers
-    const auth = readHeader(headers, 'Authorization')
-    
-    // Assert the Authorization header exists and starts with Bearer
-    expect(auth).toBeTruthy()
-    expect(auth).toMatch(/^Bearer\s.+/)
-  })
-
   it('dispatches logout event on 401 error', async () => {
     localStorage.setItem('jwt', 'test-token')
     

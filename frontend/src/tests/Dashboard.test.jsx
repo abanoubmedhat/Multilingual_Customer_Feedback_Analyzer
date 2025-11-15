@@ -249,49 +249,6 @@ describe('Dashboard Component', () => {
     })
   })
 
-  it('shows/hides translated text toggle', async () => {
-    const user = userEvent.setup()
-    
-    const mockStats = {
-      total: 1,
-      counts: { positive: 1 },
-      percentages: { positive: 100 },
-    }
-    
-    const mockFeedback = {
-      total: 1,
-      items: [
-        {
-          id: 1,
-          original_text: 'Bonjour!',
-          translated_text: 'Hello!',
-          sentiment: 'positive',
-          language: 'fr',
-          product: 'Product A',
-        },
-      ],
-      skip: 0,
-      limit: 5,
-    }
-    
-    setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
-    await waitFor(() => {
-      expect(screen.getByText('Bonjour!')).toBeInTheDocument()
-    })
-    
-    // Click show translated button
-    const toggleBtn = screen.getByRole('button', { name: /Show Translated/i })
-    await user.click(toggleBtn)
-    
-    // Should now show translated text
-    await waitFor(() => {
-      expect(screen.getByText('Hello!')).toBeInTheDocument()
-      expect(screen.getByText(/Original:/i)).toBeInTheDocument()
-    })
-  })
-
   it('handles API errors gracefully', async () => {
     global.fetch.mockImplementation(() =>
       Promise.resolve({

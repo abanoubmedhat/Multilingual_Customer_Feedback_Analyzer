@@ -78,13 +78,18 @@ describe('Submit Component', () => {
     
     global.fetch.mockImplementation((url) => {
       if (url.includes('/api/translate')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            translated_text: 'This is great!',
-            sentiment: 'positive',
-            language: 'en',
-          }),
+        // Add slight delay to allow UI to render the "analyzing" state
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              ok: true,
+              json: async () => ({
+                translated_text: 'This is great!',
+                sentiment: 'positive',
+                language: 'en',
+              }),
+            })
+          }, 100)
         })
       }
       if (url.includes('/api/feedback')) {
@@ -102,6 +107,7 @@ describe('Submit Component', () => {
       }
       return Promise.resolve({
         ok: false,
+        headers: new Headers(),
       })
     })
 

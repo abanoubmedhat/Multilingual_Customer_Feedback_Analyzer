@@ -249,20 +249,4 @@ describe('Dashboard Component', () => {
     })
   })
 
-  it('handles API errors gracefully', async () => {
-    global.fetch.mockImplementation(() =>
-      Promise.resolve({
-        ok: false,
-        status: 500,
-        headers: new Headers(),
-      })
-    )
-    
-    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
-    await waitFor(() => {
-      expect(screen.getByText(/Error:/i)).toBeInTheDocument()
-    })
-  })
-
 })

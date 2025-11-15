@@ -65,10 +65,13 @@ jobs:
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           file: ./backend/coverage.xml
           flags: backend
           name: backend-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
   
   # Frontend Tests
   frontend-tests:
@@ -88,11 +91,12 @@ jobs:
         working-directory: ./frontend
         run: npm install
       
-      - name: Run linting
-        working-directory: ./frontend
-        run: |
-          npm install -g eslint
-          npx eslint src --ext .js,.jsx --max-warnings 10 || true
+      # Linting step removed - no ESLint configuration present
+      # - name: Run linting
+      #   working-directory: ./frontend
+      #   run: |
+      #     npm install -g eslint
+      #     npx eslint src --ext .js,.jsx --max-warnings 10 || true
       
       - name: Run tests
         working-directory: ./frontend
@@ -104,10 +108,13 @@ jobs:
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           file: ./frontend/coverage/coverage-final.json
           flags: frontend
           name: frontend-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
   
   # Build Docker Images
   build-docker:

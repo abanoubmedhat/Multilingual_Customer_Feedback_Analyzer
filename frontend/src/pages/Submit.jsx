@@ -6,8 +6,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr, setIsSubmitting }){
   // Persisted state keys
   const STORAGE_KEY = 'pendingFeedbackAnalysis'
-  const [text, setText] = useState('')
-  const [product, setProduct] = useState('')
+  const FEEDBACK_TEXT_KEY = 'feedbackText'
+  const FEEDBACK_PRODUCT_KEY = 'feedbackProduct'
+  const [text, setText] = useState(() => localStorage.getItem(FEEDBACK_TEXT_KEY) || '')
+  const [product, setProduct] = useState(() => localStorage.getItem(FEEDBACK_PRODUCT_KEY) || '')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -17,23 +19,33 @@ export default function Submit({ products = [], productsLoading = false, setFeed
   const [completedSteps, setCompletedSteps] = useState([])
   // Restore pending analysis state on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      try {
-        const data = JSON.parse(saved)
-        if (data.phase) setPhase(data.phase)
-        if (data.text) setText(data.text)
-        if (data.product) setProduct(data.product)
-        if (data.analysisResult) setAnalysisResult(data.analysisResult)
-        if (Array.isArray(data.completedSteps)) setCompletedSteps(data.completedSteps)
-        if (data.error) setError(data.error)
-      } catch {}
+    // Always clear all persisted state and reset form on mount (page refresh)
+    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(FEEDBACK_TEXT_KEY)
+    localStorage.removeItem(FEEDBACK_PRODUCT_KEY)
+    setPhase(null)
+    setText('')
+    setProduct('')
+    setAnalysisResult(null)
+    setCompletedSteps([])
+    setError(null)
+    // Immediately set loading state to false to avoid spinner delay after refresh
+    if (typeof setIsLoadingProducts === 'function') {
+      setIsLoadingProducts(false);
     }
   }, [])
   const startRef = useRef(0)
   const abortRef = useRef(null)
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
   const TIMEOUT_MS = 60000 // 60s timeout (generous for slow API responses)
+
+  // Persist feedback text and product selection on change
+  useEffect(() => {
+    localStorage.setItem(FEEDBACK_TEXT_KEY, text)
+  }, [text])
+  useEffect(() => {
+    localStorage.setItem(FEEDBACK_PRODUCT_KEY, product)
+  }, [product])
 
   // Removed auto-select of first product to force explicit user choice.
 
@@ -151,16 +163,17 @@ export default function Submit({ products = [], productsLoading = false, setFeed
 
       setResult(savedData)
       setCompletedSteps(['analyzing', 'saving'])
-      setText('')
-      setProduct('')
+  // Do not reset text/product on error; only reset on success or cancel
       // Show success toast notification
       if (setFeedbackMsg) {
         setFeedbackMsg('✅ Feedback stored successfully!')
       }
       try { window.dispatchEvent(new CustomEvent('feedback:created', { detail: savedData })) } catch {}
-      setPhase(null)
-      // Clear persisted state
-      localStorage.removeItem(STORAGE_KEY)
+  setPhase(null)
+  // Clear persisted state
+  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(FEEDBACK_TEXT_KEY)
+  localStorage.removeItem(FEEDBACK_PRODUCT_KEY)
     }catch(err){
       clearTimeout(timeoutId)
       // Distinguish abort causes
@@ -209,8 +222,10 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       if (setIsSubmitting) setIsSubmitting(false)
       setAnalysisResult(null)
       setCompletedSteps([])
-      setProduct('') // Unselect product
-      setText('') // Erase feedback area
+  setProduct('') // Unselect product
+  setText('') // Erase feedback area
+  localStorage.removeItem(FEEDBACK_TEXT_KEY)
+  localStorage.removeItem(FEEDBACK_PRODUCT_KEY)
       setError('Analysis cancelled - no feedback was saved.')
       // Persist cancel state
       localStorage.setItem(STORAGE_KEY, JSON.stringify({

@@ -216,6 +216,49 @@ async def test_gemini_api_error_handling(client: AsyncClient):
         assert "Gemini is down" in response.json()["detail"]
 
 @pytest.mark.asyncio
+async def test_gemini_api_quota_error(client: AsyncClient):
+    """Test Gemini API quota/rate limit error handling in translate endpoint."""
+    with patch('google.generativeai.GenerativeModel') as mock_gen_model:
+        # Simulate quota error
+        class DummyResponse:
+            parts = [1]
+            text = None
+        mock_gen_model.return_value.generate_content.side_effect = Exception("ResourceExhausted: Quota exceeded")
+        response = await client.post(
+            "/api/translate",
+            json={"text": "Test quota error"}
+        )
+        assert response.status_code == 429
+        assert "rate limit" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_gemini_api_invalid_model_error(client: AsyncClient):
+    """Test Gemini API invalid model error handling in translate endpoint."""
+    with patch('google.generativeai.GenerativeModel') as mock_gen_model:
+        # Simulate invalid model error
+        mock_gen_model.return_value.generate_content.side_effect = Exception("Model not found or invalid")
+        response = await client.post(
+            "/api/translate",
+            json={"text": "Test invalid model error"}
+        )
+        assert response.status_code == 400
+        assert "invalid or unsupported model" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_gemini_api_generic_error(client: AsyncClient):
+    """Test Gemini API generic error handling in translate endpoint."""
+    with patch('google.generativeai.GenerativeModel') as mock_gen_model:
+        # Simulate generic error
+        mock_gen_model.return_value.generate_content.side_effect = Exception("Some generic error occurred")
+        response = await client.post(
+            "/api/translate",
+            json={"text": "Test generic error"}
+        )
+        assert response.status_code == 500
+        assert "ai analysis failed" in response.json()["detail"].lower()
+        assert "generic error" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
 async def test_create_tables_retry(monkeypatch):
     call_count = {"count": 0}
 
@@ -373,3 +416,55 @@ async def test_get_current_gemini_model_db_error(monkeypatch, db_session):
     monkeypatch.setattr(db_session, "execute", broken_execute)
     result = await _get_current_gemini_model(db_session)
     assert result == "models/gemini-2.5-flash"
+
+
+# --- Authentication and Password Change Error Handling Tests ---
+
+@pytest.mark.asyncio
+async def test_login_incorrect_password(client: AsyncClient):
+    """Test login with incorrect password returns 401."""
+    response = await client.post("/auth/token", data={"username": "admin", "password": "wrongpass"})
+    assert response.status_code == 401
+    assert "incorrect username or password" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_change_password_no_admin(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test password change when no admin user exists returns 400."""
+    async def dummy_execute(self, stmt):
+        class DummyRes:
+            def scalars(_):
+                class DummyScalar:
+                    def first(_): return None
+                return DummyScalar()
+        return DummyRes()
+    monkeypatch.setattr("main.AsyncSession.execute", dummy_execute)
+    response = await client.post(
+        "/auth/change-password",
+        json={"current_password": "irrelevant", "new_password": "newpass"},
+        headers=admin_token_headers
+    )
+    assert response.status_code == 400
+    assert "admin not initialized" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_change_password_incorrect_current(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test password change with incorrect current password returns 400."""
+    class DummyUser:
+        username = "admin"
+        password_hash = "hashed-correctpass"
+    async def dummy_execute(self, stmt):
+        class DummyRes:
+            def scalars(_):
+                class DummyScalar:
+                    def first(_): return DummyUser()
+                return DummyScalar()
+        return DummyRes()
+    monkeypatch.setattr("main.AsyncSession.execute", dummy_execute)
+    monkeypatch.setattr("main.pwd_context.verify", lambda pw, h: False)
+    response = await client.post(
+        "/auth/change-password",
+        json={"current_password": "wrongpass", "new_password": "newpass"},
+        headers=admin_token_headers
+    )
+    assert response.status_code == 400
+    assert "current password is incorrect" in response.json()["detail"].lower()

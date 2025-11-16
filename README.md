@@ -327,7 +327,7 @@ docker compose exec frontend npm run test:coverage
 
 ```
 Backend Tests:  45 test cases
-Frontend Tests: 45 test cases
+Frontend Tests: 32 test cases
 Total Coverage: 68.8% line coverage
 ```
 

@@ -169,10 +169,21 @@ queried via the API. This backend is intended for development/demo purposes and
 is containerized with Docker Compose.
 
 Available endpoints:
-- POST /api/feedback — Analyze and store feedback (accepts optional `product`).
+- POST /api/feedback — Analyze and store feedback.
 - POST /api/translate — Analyze (translate + sentiment) without storing.
 - GET  /api/feedback — List feedback with filters (product, language, sentiment).
 - GET  /api/stats — Sentiment overview and percentages.
+- GET  /api/products — List available products.
+- POST /api/products — Create a new product (admin only).
+- DELETE /api/products/{product_id} — Delete a product (admin only).
+- DELETE /api/feedback/all — Delete all feedback matching filters (admin only).
+- DELETE /api/feedback/{feedback_id} — Delete a single feedback entry (admin only).
+- DELETE /api/feedback — Bulk delete feedback by IDs (admin only).
+- GET  /api/gemini/models — List available Gemini models (admin only).
+- GET  /api/gemini/current-model — Get current Gemini model (admin only).
+- POST /api/gemini/current-model — Update Gemini model (admin only).
+- POST /auth/token — Obtain JWT access token (admin only).
+- POST /auth/change-password — Change admin password.
 """
 
 openapi_tags = [
@@ -253,16 +264,29 @@ def make_rate_limiter(limit: int, window_seconds: int, key: str):
 
 # --- API Endpoints ---
 
-@app.get("/")
+@app.get(
+    "/",
+    responses={
+        200: {"description": "API health check"}
+    }
+)
 def read_root():
     return {"message": "Welcome to the Feedback Analyzer API!"}
 
-# NOTE: /api/analyze removed — use POST /api/feedback to analyze + store,
+# NOTE: use POST /api/feedback to analyze + store,
 # and POST /api/translate to analyze without storing. This avoids overlapping
 # endpoints and matches the project API specification.
 
 
-@app.get("/api/feedback")
+@app.get(
+    "/api/feedback",
+    tags=["feedback"],
+    responses={
+        200: {"description": "Paginated feedback list"},
+        401: {"description": "Unauthorized (missing/invalid token)"},
+        403: {"description": "Forbidden (non-admin user)"}
+    }
+)
 async def get_all_feedback(
     product: str | None = None,
     language: str | None = None,
@@ -390,7 +414,14 @@ def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash"
 
 
 # --- Auth Endpoints ---
-@app.post("/auth/token")
+@app.post(
+    "/auth/token",
+    tags=["authentication"],
+    responses={
+        200: {"description": "JWT access token"},
+        401: {"description": "Incorrect username or password"}
+    }
+)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
@@ -402,7 +433,15 @@ async def login(
     token = create_access_token({"sub": user.username, "role": "admin"})
     return {"access_token": token, "token_type": "bearer"}
 
-@app.post("/auth/change-password")
+@app.post(
+    "/auth/change-password",
+    tags=["authentication"],
+    responses={
+        200: {"description": "Password changed"},
+        400: {"description": "Invalid input or incorrect current password"},
+        401: {"description": "Unauthorized"}
+    }
+)
 async def change_password(
     payload: schemas.AdminPasswordChange, 
     db: AsyncSession = Depends(get_db),
@@ -417,12 +456,28 @@ async def change_password(
     user.password_hash = pwd_context.hash(payload.new_password)
     await db.commit()
     return {"status": "ok"}
-@app.get("/api/products", response_model=list[schemas.Product])
+@app.get(
+    "/api/products",
+    response_model=list[schemas.Product],
+    tags=["products"],
+    responses={
+        200: {"description": "List of products"}
+    }
+)
 async def list_products(db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(models.Product).order_by(models.Product.name.asc()))
     return res.scalars().all()
 
-@app.post("/api/products", response_model=schemas.Product)
+@app.post(
+    "/api/products",
+    response_model=schemas.Product,
+    tags=["products"],
+    responses={
+        200: {"description": "Product created"},
+        400: {"description": "Product already exists or invalid name"},
+        500: {"description": "Creation failed"}
+    }
+)
 async def create_product(
     prod: schemas.ProductCreate,
     db: AsyncSession = Depends(get_db),
@@ -442,7 +497,15 @@ async def create_product(
         raise HTTPException(status_code=500, detail=f"Failed to create product: {e}")
     return item
 
-@app.delete("/api/products/{product_id}")
+@app.delete(
+    "/api/products/{product_id}",
+    tags=["products"],
+    responses={
+        200: {"description": "Product deleted"},
+        404: {"description": "Product not found"},
+        500: {"description": "Deletion failed"}
+    }
+)
 async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _: dict = Depends(get_current_admin)):
     res = await db.execute(select(models.Product).where(models.Product.id == product_id))
     item = res.scalars().first()
@@ -460,7 +523,15 @@ async def delete_product(product_id: int, db: AsyncSession = Depends(get_db), _:
 translate_limiter = Depends(make_rate_limiter(limit=30, window_seconds=60, key="translate"))
 feedback_limiter = Depends(make_rate_limiter(limit=10, window_seconds=60, key="feedback"))
 
-@app.post("/api/translate", response_model=schemas.TranslateOutput)
+@app.post(
+    "/api/translate",
+    response_model=schemas.TranslateOutput,
+    tags=["translate"],
+    responses={
+        400: {"description": "Invalid input or AI processing failed"},
+        429: {"description": "Rate limit exceeded"}
+    }
+)
 async def translate_only(
     feedback_input: schemas.TranslateInput, 
     db: AsyncSession = Depends(get_db),
@@ -472,14 +543,25 @@ async def translate_only(
     return schemas.TranslateOutput(**analysis)
 
 
-@app.post("/api/feedback", response_model=schemas.Feedback)
+@app.post(
+    "/api/feedback",
+    response_model=schemas.Feedback,
+    tags=["feedback"],
+    responses={
+        400: {"description": "Invalid input, unknown product, or AI processing failed"},
+        429: {"description": "Rate limit exceeded"},
+        499: {"description": "Client disconnected (cancelled request)"},
+        500: {"description": "Internal server error"}
+    }
+)
 async def create_feedback(
     feedback_input: schemas.FeedbackCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
     _: None = feedback_limiter
 ):
-    """Analyze input with Gemini and store the result along with optional product. 
+    """Analyze input with Gemini and store the result along with mandatory product. 
+    The 'product' field is required and must match an existing product name.
     If analysis data (language, translated_text, sentiment) is provided, it will be used
     instead of calling Gemini again."""
     try:
@@ -531,7 +613,15 @@ async def create_feedback(
         raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
 
 
-@app.delete("/api/feedback/all", summary="Delete all feedback matching filters")
+@app.delete(
+    "/api/feedback/all",
+    summary="Delete all feedback matching filters",
+    tags=["feedback"],
+    responses={
+        200: {"description": "Feedback deleted"},
+        500: {"description": "Failed to delete filtered feedback"}
+    }
+)
 async def delete_all_filtered_feedback(
     product: str = None,
     language: str = None,
@@ -568,7 +658,15 @@ async def delete_all_filtered_feedback(
         raise HTTPException(status_code=500, detail=f"Failed to delete filtered feedback: {e}")
 
 
-@app.delete("/api/feedback/{feedback_id}")
+@app.delete(
+    "/api/feedback/{feedback_id}",
+    tags=["feedback"],
+    responses={
+        200: {"description": "Feedback deleted"},
+        404: {"description": "Feedback not found"},
+        500: {"description": "Failed to delete feedback"}
+    }
+)
 async def delete_feedback(
     feedback_id: int,
     db: AsyncSession = Depends(get_db),
@@ -587,7 +685,15 @@ async def delete_feedback(
     return {"status": "deleted", "id": feedback_id}
 
 
-@app.delete("/api/feedback", summary="Bulk delete feedback entries")
+@app.delete(
+    "/api/feedback",
+    summary="Bulk delete feedback entries",
+    tags=["feedback"],
+    responses={
+        200: {"description": "Bulk feedback deleted"},
+        500: {"description": "Failed to bulk delete feedback"}
+    }
+)
 async def bulk_delete_feedback(
     payload: schemas.FeedbackBulkDelete,
     db: AsyncSession = Depends(get_db),
@@ -610,7 +716,13 @@ async def bulk_delete_feedback(
         raise HTTPException(status_code=500, detail=f"Failed to bulk delete feedback: {e}")
 
 
-@app.get("/api/stats")
+@app.get(
+    "/api/stats",
+    tags=["stats"],
+    responses={
+        200: {"description": "Sentiment statistics"}
+    }
+)
 async def get_stats(
     product: str | None = None,
     language: str | None = None,
@@ -638,7 +750,14 @@ async def get_stats(
 
 # --- Gemini Model Management Endpoints ---
 
-@app.get("/api/gemini/models", response_model=list[schemas.GeminiModel])
+@app.get(
+    "/api/gemini/models",
+    response_model=list[schemas.GeminiModel],
+    tags=["Gemini settings"],
+    responses={
+        200: {"description": "List Gemini models"}
+    }
+)
 async def list_gemini_models(_: dict = Depends(get_current_admin)):
     """List available Gemini models dynamically from Google API."""
     global _gemini_models_cache, _gemini_models_cache_time
@@ -749,14 +868,28 @@ async def list_gemini_models(_: dict = Depends(get_current_admin)):
         )
 
 
-@app.get("/api/gemini/current-model", response_model=schemas.ModelSetting)
+@app.get(
+    "/api/gemini/current-model",
+    response_model=schemas.ModelSetting,
+    tags=["Gemini settings"],
+    responses={
+        200: {"description": "Current Gemini model"}
+    }
+)
 async def get_current_model(db: AsyncSession = Depends(get_db), _: dict = Depends(get_current_admin)):
     """Get the currently selected Gemini model."""
     model_name = await _get_current_gemini_model(db)
     return {"current_model": model_name}
 
 
-@app.post("/api/gemini/current-model", response_model=schemas.ModelSetting)
+@app.post(
+    "/api/gemini/current-model",
+    response_model=schemas.ModelSetting,
+    tags=["Gemini settings"],
+    responses={
+        200: {"description": "Gemini model updated"}
+    }
+)
 async def update_current_model(
     payload: schemas.ModelSettingUpdate,
     db: AsyncSession = Depends(get_db),

@@ -1,4 +1,4 @@
-﻿# 📊 Multilingual Customer Feedback Analyzer
+﻿# 📊 Multilingual Customer Feedback Analyzer v1.0
 
 A full-stack web application that collects customer feedback in any language, automatically translates it to English using Google Gemini AI, performs sentiment analysis, and provides an admin dashboard with beautiful visualizations and management tools.
 
@@ -7,7 +7,7 @@ A full-stack web application that collects customer feedback in any language, au
 This application solves the challenge of analyzing multilingual customer feedback at scale. It features:
 
 - **Multilingual Support**: Accept feedback in any language with automatic language detection
-- **AI-Powered Analysis**: Google Gemini 2.5 Pro translates text to English and classifies sentiment (positive/neutral/negative)
+- **AI-Powered Analysis**: Google AI cloud translates text to English and classifies sentiment (positive/neutral/negative), with admin option to select the model to be used from the supported models list.
 - **Real-time Dashboard**: Interactive pie charts, statistics, and filterable feedback lists
 - **Product Management**: Track feedback across multiple products
 - **Secure Admin Panel**: JWT-based authentication with sliding token expiration
@@ -23,7 +23,7 @@ This application solves the challenge of analyzing multilingual customer feedbac
 - **Framework**: FastAPI with async/await for high performance
 - **Database**: PostgreSQL 14 with SQLAlchemy async ORM
 - **Authentication**: JWT tokens with bcrypt password hashing
-- **AI Integration**: Google Gemini 2.5 Pro for translation and sentiment analysis
+- **AI Integration**: Google AI cloud generative models for translation and sentiment analysis
 - **API Design**: RESTful endpoints with OpenAPI/Swagger documentation
 - **Middleware**: Token refresh, CORS, rate limiting
 
@@ -49,6 +49,47 @@ This application solves the challenge of analyzing multilingual customer feedbac
 
 1. **Docker & Docker Compose** installed on your system
    - [Install Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
+   ### OR: on WSL (Windows Subsystem for Linux)
+   To install Docker and Docker Compose on Ubuntu running in WSL, follow these steps:
+
+   1. **Update package info and install prerequisites**
+      ```sh
+      sudo apt-get update
+      sudo apt-get install -y ca-certificates curl gnupg
+      ```
+   2. **Add Docker's official GPG key**
+      ```sh
+      sudo install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      ```
+   3. **Set up the Docker repository**
+      ```sh
+      echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      ```
+   4. **Install Docker Engine, CLI, and Compose plugin**
+      ```sh
+      sudo apt-get update
+      sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      ```
+      This installs the Docker Compose V2 plugin (recommended).
+
+   5. **(Optional) Add your user to the docker group to run docker commands without sudo**
+      ```sh
+      sudo usermod -aG docker $USER
+      ```
+      After running this command, restart your WSL terminal for group changes to take effect.
+
+   6. **Verify installation**
+      ```sh
+      docker --version
+      docker compose version
+      ```
+      You should see version information for both Docker and Docker Compose.
+
+   If you encounter issues, see the [official Docker documentation for Linux](https://docs.docker.com/engine/install/ubuntu/) or search for WSL-specific troubleshooting tips.
 
 2. **Google Gemini API Key**
    - Get your free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
@@ -57,8 +98,8 @@ This application solves the challenge of analyzing multilingual customer feedbac
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/abanoubmedhat/feedback_analyzer.git
-   cd feedback_analyzer
+   git clone https://github.com/abanoubmedhat/Multilingual_Customer_Feedback_Analyzer.git
+   cd Multilingual_Customer_Feedback_Analyzer
    ```
 
 2. **Create environment configuration**
@@ -74,7 +115,8 @@ This application solves the challenge of analyzing multilingual customer feedbac
 
    # Security settings
    SECRET_KEY=your-secret-key-here-change-in-production
-   ACCESS_TOKEN_EXPIRE_MINUTES=60
+   # Auto-logout timeout
+   ACCESS_TOKEN_EXPIRE_MINUTES=5
 
    # Admin credentials (default)
    ADMIN_USERNAME=admin
@@ -87,7 +129,7 @@ This application solves the challenge of analyzing multilingual customer feedbac
 
 4. **Build and start all services**
    ```bash
-   docker-compose up --build
+   docker compose up --build
    ```
 
    This will start:
@@ -108,32 +150,32 @@ This application solves the challenge of analyzing multilingual customer feedbac
 
 ```bash
 # Start all services (backend, frontend, database)
-docker-compose up --build
+docker compose up --build
 
 # Or run in detached mode (background)
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ### Stopping the Application
 
 ```bash
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove database volumes (⚠️ deletes all data)
-docker-compose down -v
+docker compose down -v
 ```
 
 ### Viewing Logs
 
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f db
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f db
 ```
 
 ### Accessing Services
@@ -164,14 +206,14 @@ docker-compose logs -f db
 
 ### For Administrators (Dashboard)
 
-1. **Click "Admin Login"** button in the top-right corner
+1. **Click "Admin? Sign in here →"** button in the bottom
 2. **Login** with default credentials:
    - Username: `admin`
-   - Password: `admin` (change this in production!)
+   - Password: `admin` (or your password if you've set it up, note: change this in production!)
 3. **Navigate tabs**:
    - **Dashboard**: View analytics and manage feedback
-   - **Submit Feedback**: Test the submission form
    - **Settings**: Manage products and change password
+   - **Logout**: To get back to user mode
 
 ### Admin Dashboard Features
 
@@ -190,21 +232,26 @@ docker-compose logs -f db
   - Paginated table (5/10/20/50 per page)
   - Filter by product, language, sentiment
   - Checkbox selection for bulk operations
-  - Show/hide translated text toggle
+  - Show/hide translated text and timestamp toggle
   - Individual delete buttons
   - Bulk delete selected
   - Delete all filtered
+  - Delete all feedbacks in the database
 
 #### **Settings Tab**
 - **Product Management**:
-  - Add new products
+  - Add new products (with confirmation)
   - Delete existing products (with confirmation)
-  - View all products
+  - View all products (in scrollable table)
   
 - **Password Management**:
   - Change admin password
   - Minimum 6 characters
   - Current password verification
+
+- **Gemini model selector**:
+  - Get the supported models for the curret google api token (only show the generative models with large tokens number)
+  - Select the model you want to use for the translation and sentiment analysis 
 
 ---
 
@@ -217,35 +264,16 @@ The project includes comprehensive unit tests for both backend and frontend comp
 **Running tests in Docker:**
 ```bash
 # Run all backend tests
-docker-compose exec backend pytest
+docker compose exec backend pytest
 
 # Run with coverage report
-docker-compose exec backend pytest --cov=. --cov-report=term-missing
+docker compose exec backend pytest --cov=. --cov-report=term-missing
 
 # Run specific test file
-docker-compose exec backend pytest tests/test_auth.py
+docker compose exec backend pytest tests/test_auth.py
 
 # Run with verbose output
-docker-compose exec backend pytest -v
-```
-
-**Quick test script:**
-```bash
-# Linux/Mac
-./run_tests.sh
-
-# Windows (Batch - recommended)
-.\run_tests.bat
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File .\run_tests.ps1
-```
-
-**Running tests locally (outside Docker):**
-```bash
-cd backend
-pip install -r requirements.txt
-pytest
+docker compose exec backend pytest -v
 ```
 
 **Test Coverage:**
@@ -255,58 +283,53 @@ pytest
 - ✅ Rate Limiting (API abuse protection)
 - ✅ Sentiment Statistics (aggregation, filtering)
 - ✅ Database Integration (async SQLAlchemy operations)
+- ✅ Gemini Model Selection (model listing, selection, error handling)
+- ✅ Admin Password Change (validation, error cases)
 
 **Test Files:**
-- `tests/test_auth.py` - Authentication and authorization
-- `tests/test_feedback.py` - Feedback CRUD operations
-- `tests/test_products.py` - Product management
-- `tests/test_rate_limiting.py` - API rate limits
+- `tests/test_auth.py` - Authentication, authorization, password change
+- `tests/test_feedback.py` - Feedback CRUD, translation, sentiment analysis
+- `tests/test_products.py` - Product management (add, delete, list)
+- `tests/test_rate_limiting.py` - API rate limits and abuse protection
+- `tests/test_main_extended.py` - Extended API scenarios, edge cases
+- `tests/conftest.py` - Shared fixtures and test setup
 
 ### Frontend Tests (Vitest + React Testing Library)
 
 **Running tests in Docker:**
 ```bash
 # Run all frontend tests
-docker-compose exec frontend npm test
+docker compose exec frontend npm test
 
 # Run in watch mode
-docker-compose exec frontend npm run test:watch
+docker compose exec frontend npm run test:watch
 
 # Run with coverage
-docker-compose exec frontend npm run test:coverage
-```
-
-**Running tests locally (outside Docker):**
-```bash
-cd frontend
-npm install
-npm test
+docker compose exec frontend npm run test:coverage
 ```
 
 **Test Coverage:**
-- ✅ App Component (authentication flow, tab navigation, token management)
-- ✅ Submit Form (feedback submission, validation, two-phase processing, cancellation)
-- ✅ Dashboard (stats display, filtering, pagination, CRUD operations)
-- ✅ fetchWithAuth Utility (token refresh, auto-logout, header management)
+- ✅ App Component (authentication flow, tab navigation, token management, error handling)
+- ✅ Submit Form (feedback submission, validation, two-phase processing, cancellation, Gemini model selection)
+- ✅ Dashboard (stats display, filtering, pagination, CRUD operations, bulk delete, timestamp toggle)
+- ✅ fetchWithAuth Utility (token refresh, auto-logout, header management, error propagation)
+- ✅ Settings Tab (product management, password change, Gemini model selector)
+- ✅ Modal and confirmation dialogs (React Portals, UX flows)
 
 **Test Files:**
-- `src/tests/App.test.jsx` - Main app component and authentication
-- `src/tests/Submit.test.jsx` - Feedback submission form
-- `src/tests/Dashboard.test.jsx` - Admin dashboard functionality
-- `src/tests/fetchWithAuth.test.js` - Authentication utility
+- `src/tests/App.test.jsx` - Main app component, authentication, error handling
+- `src/tests/Submit.test.jsx` - Feedback submission, validation, Gemini model selection
+- `src/tests/Dashboard.test.jsx` - Admin dashboard, stats, filtering, bulk actions
+- `src/tests/fetchWithAuth.test.js` - Authentication utility, token refresh, error handling
+- `src/tests/setup.js` - Test environment setup and utilities
 
 ### Test Results Summary
 
 ```
-Backend Tests:  40+ test cases
-Frontend Tests: 35+ test cases
-Total Coverage: ~75% of critical paths
+Backend Tests:  45 test cases
+Frontend Tests: 45 test cases
+Total Coverage: 68.8% line coverage
 ```
-
-**Learn More:**
-- [TESTING.md](./TESTING.md) - Comprehensive testing guide
-- [TEST_FAILURES_GUIDE.md](./TEST_FAILURES_GUIDE.md) - Troubleshooting test issues
-- [TESTING_QUICKREF.md](./TESTING_QUICKREF.md) - Quick reference
 
 ---
 
@@ -334,519 +357,54 @@ The project includes a complete CI/CD pipeline using **GitHub Actions** for auto
 ✅ **Automated Deployment**
 - Staging environment on `main` branch
 - Production deployment with approval gates
-- Rollback capabilities
-
-### Quick Start
-
-1. **Enable GitHub Actions**
-   - Workflows automatically activate when pushed to `.github/workflows/`
-
-2. **Configure Secrets**
-   - Navigate to: **Settings > Secrets and variables > Actions**
-   - Add: `GOOGLE_API_KEY` (required)
-   - Add deployment credentials (platform-specific)
-
-3. **Test the Pipeline**
-   ```bash
-   git checkout -b test/ci-pipeline
-   echo "Test CI/CD" >> README.md
-   git add README.md
-   git commit -m "test: Trigger CI/CD pipeline"
-   git push origin test/ci-pipeline
-   # Create PR and watch Actions tab
-   ```
+- Rollback capabilities (render.com manual deploy for specific commit)
 
 ### Pipeline Workflows
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| **CI/CD Pipeline** | Push to main/develop, PRs | Full test suite, build, deploy |
-| **PR Checks** | Pull requests | Fast validation, linting, size checks |
-| **Dependency Check** | Weekly (Mondays 9 AM) | Security vulnerability scanning |
+| Workflow              | Trigger                  | Purpose                              |
+|-----------------------|--------------------------|--------------------------------------|
+| **CI/CD Pipeline**    | Push to main/develop, PRs| Full test suite, build, deploy       |
+| **PR Checks**         | Pull requests            | Fast validation, linting, size checks|
+| **Dependency Check**  | Weekly (Mondays 9 AM)    | Security vulnerability scanning      |
 
 ### Status Badges
 
 ```markdown
-![CI/CD Pipeline](https://github.com/abanoubmedhat/feedback_analyzer/workflows/CI%2FCD%20Pipeline/badge.svg)
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
+[![CI/CD Pipeline](https://github.com/abanoubmedhat/Multilingual_Customer_Feedback_Analyzer/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/abanoubmedhat/Multilingual_Customer_Feedback_Analyzer/actions/workflows/ci-cd.yml)
 ```
-
-**Learn More:**
-- [CI_CD_GUIDE.md](./CI_CD_GUIDE.md) - Complete CI/CD documentation
-- [CI_CD_SETUP_CHECKLIST.md](./CI_CD_SETUP_CHECKLIST.md) - Setup checklist
-
 ---
 
 ## 🌐 Deployment
 
-Deploy your Feedback Analyzer to free hosting platforms for demos and production use.
+Multilingual Customer Feedback Analyzer v1.0 is now deplyed to free hosting platform for demo purposes.
 
-### Quick Deploy to Render.com (Recommended) ⭐
+### Deploy to Render.com ⭐
 
-**Free tier includes:**
-- PostgreSQL database
-- Auto-deploy from GitHub
-- HTTPS by default
-- 750 hours/month free
-
-**One-Click Deploy:**
-
-1. **Prepare for deployment:**
-   ```bash
-   # Windows PowerShell
-   .\deploy-render.ps1
-   
-   # Linux/Mac
-   ./deploy-render.sh
-   ```
-
-2. **Deploy on Render:**
-   - Go to [render.com](https://render.com) and sign up with GitHub
-   - Click "New +" → "Blueprint"
-   - Connect your GitHub repository
-   - Render will auto-detect `render.yaml`
-   - Add your `GOOGLE_API_KEY` when prompted
-   - Click "Apply" and wait ~5 minutes
-
-3. **Access your deployed app:**
+   **Access the deployed app:**
    - Frontend: `https://feedback-analyzer-frontend.onrender.com`
-   - Backend: `https://feedback-analyzer-backend.onrender.com`
+   - Backend: `https://feedback-analyzer-arsi.onrender.com`
 
-⚠️ **Note:** Free tier services sleep after 15 minutes of inactivity (30s wake-up time).
-
-### Alternative Platforms
-
-| Platform | Best For | Free Tier | Cold Starts |
-|----------|----------|-----------|-------------|
-| **Render.com** ⭐ | Quick demos | Unlimited | Yes (~30s) |
-| **Railway.app** | Active dev | $5/month credit | No |
-| **Fly.io** | Production-like | 3 VMs free | No |
-
-### Production Checklist
-
-Before deploying to production:
-
-- [ ] Change default admin password
-- [ ] Set strong SECRET_KEY
-- [ ] Configure CORS for your domain
-- [ ] Enable HTTPS
-- [ ] Set up database backups
-- [ ] Configure monitoring/alerts
-- [ ] Review rate limits
-- [ ] Set up custom domain (optional)
-
-**Complete Guide:** See [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) for detailed instructions, troubleshooting, and best practices.
+⚠️ **Note:** Free tier services on Render.com automatically sleep after 15 minutes of inactivity, resulting in a ~30 second wake-up time for the first request. To mitigate this limitation and keep your app responsive, an external health check (using [cron-job.org](https://cron-job.org)) is configured to periodically ping the service and keep it warm.
 
 ---
 
 ## 📡 API Routes & Usage
 
-### Public Endpoints
-
-#### `GET /`
-Welcome message and API health check
-
-**Response:**
-```json
-{
-  "message": "Welcome to the Feedback Analyzer API!"
-}
-```
-
----
-
-### Feedback Endpoints
-
-#### `POST /api/translate`
-Analyze text without saving to database (preview mode)
-
-**Purpose**: Test translation and sentiment analysis without persistence
-
-**Request Body:**
-```json
-{
-  "text": "This product is amazing! I love it!"
-}
-```
-
-**Response:**
-```json
-{
-  "translated_text": "This product is amazing! I love it!",
-  "sentiment": "positive",
-  "language": "en",
-  "language_confidence": 0.99
-}
-```
-
-**Rate Limit**: 30 requests per minute per IP
-
-**Error Responses:**
-- `400`: Invalid input or AI processing failed
-- `429`: Rate limit exceeded
-
----
-
-#### `POST /api/feedback`
-Submit feedback for AI analysis and database storage
-
-**Purpose**: Production endpoint for storing customer feedback
-
-**Request Body (Basic):**
-```json
-{
-  "text": "Ce produit est incroyable!",
-  "product": "General"
-}
-```
-
-**Request Body (With Pre-analyzed Data):**
-```json
-{
-  "text": "Ce produit est incroyable!",
-  "product": "General",
-  "language": "fr",
-  "translated_text": "This product is amazing!",
-  "sentiment": "positive",
-  "language_confidence": 0.98
-}
-```
-
-**Response:**
-```json
-{
-  "id": 1,
-  "original_text": "Ce produit est incroyable!",
-  "translated_text": "This product is amazing!",
-  "sentiment": "positive",
-  "product": "General",
-  "language": "fr",
-  "language_confidence": 0.98,
-  "created_at": "2025-11-13T10:30:00.123456Z"
-}
-```
-
-**Rate Limit**: 10 requests per minute per IP
-
-**Error Responses:**
-- `400`: Invalid input, unknown product, or AI processing failed
-- `429`: Rate limit exceeded
-- `499`: Client disconnected (cancelled request)
-- `500`: Internal server error
-
----
-
-#### `GET /api/feedback` 🔒 Admin Only
-Retrieve paginated feedback with optional filters
-
-**Authentication**: Requires `Authorization: Bearer <JWT_TOKEN>` header
-
-**Query Parameters:**
-- `product` (optional): Filter by product name (or "(unspecified)")
-- `language` (optional): Filter by language code (e.g., "en", "fr", "es")
-- `sentiment` (optional): Filter by sentiment ("positive", "neutral", "negative")
-- `skip` (default: 0): Number of records to skip (pagination offset)
-- `limit` (default: 100, max: 100): Maximum records to return
-
-**Example Request:**
-```
-GET /api/feedback?product=General&sentiment=positive&skip=0&limit=10
-```
-
-**Response:**
-```json
-{
-  "total": 42,
-  "items": [
-    {
-      "id": 1,
-      "original_text": "Great product!",
-      "translated_text": "Great product!",
-      "sentiment": "positive",
-      "product": "General",
-      "language": "en",
-      "language_confidence": 0.99,
-      "created_at": "2025-11-13T10:30:00Z"
-    }
-  ],
-  "skip": 0,
-  "limit": 10
-}
-```
-
----
-
-#### `DELETE /api/feedback/{feedback_id}` 🔒 Admin Only
-Delete a single feedback entry by ID
-
-**Authentication**: Required
-
-**Path Parameter:**
-- `feedback_id`: Integer ID of the feedback to delete
-
-**Response:**
-```json
-{
-  "status": "deleted",
-  "id": 1
-}
-```
-
-**Error Responses:**
-- `401`: Unauthorized (missing/invalid token)
-- `403`: Forbidden (non-admin user)
-- `404`: Feedback not found
-- `500`: Deletion failed
-
----
-
-#### `DELETE /api/feedback` 🔒 Admin Only
-Bulk delete multiple feedback entries by IDs
-
-**Authentication**: Required
-
-**Request Body:**
-```json
-{
-  "ids": [1, 2, 3, 4, 5]
-}
-```
-
-**Response:**
-```json
-{
-  "deleted": 5,
-  "ids": [1, 2, 3, 4, 5]
-}
-```
-
-**Notes:**
-- Only existing IDs will be deleted
-- Returns actual count of deleted records
-
----
-
-#### `DELETE /api/feedback/all` 🔒 Admin Only
-Delete all feedback matching filters
-
-**Authentication**: Required
-
-**Query Parameters:** (all optional)
-- `product`: Filter by product name
-- `language`: Filter by language code
-- `sentiment`: Filter by sentiment
-
-**Example Request:**
-```
-DELETE /api/feedback/all?sentiment=negative&product=General
-```
-
-**Response:**
-```json
-{
-  "deleted": 12
-}
-```
-
-**Warning**: This is a destructive operation! Use with caution.
-
----
-
-#### `GET /api/stats` 🔒 Admin Only
-Get sentiment statistics with optional filters
-
-**Authentication**: Required
-
-**Query Parameters:** (all optional)
-- `product`: Filter by product name
-- `language`: Filter by language code
-
-**Example Request:**
-```
-GET /api/stats?product=General
-```
-
-**Response:**
-```json
-{
-  "total": 100,
-  "counts": {
-    "positive": 60,
-    "neutral": 25,
-    "negative": 15
-  },
-  "percentages": {
-    "positive": 60.0,
-    "neutral": 25.0,
-    "negative": 15.0
-  }
-}
-```
-
----
-
-### Product Management
-
-#### `GET /api/products`
-List all products (publicly accessible)
-
-**Purpose**: Populate product dropdown in submission form
-
-**Response:**
-```json
-[
-  {
-    "id": 1,
-    "name": "General"
-  },
-  {
-    "id": 2,
-    "name": "Premium Plan"
-  }
-]
-```
-
----
-
-#### `POST /api/products` 🔒 Admin Only
-Create a new product
-
-**Authentication**: Required
-
-**Request Body:**
-```json
-{
-  "name": "New Product"
-}
-```
-
-**Response:**
-```json
-{
-  "id": 3,
-  "name": "New Product"
-}
-```
-
-**Error Responses:**
-- `400`: Product already exists or invalid name
-- `500`: Creation failed
-
----
-
-#### `DELETE /api/products/{product_id}` 🔒 Admin Only
-Delete a product by ID
-
-**Authentication**: Required
-
-**Path Parameter:**
-- `product_id`: Integer ID of the product
-
-**Response:**
-```json
-{
-  "status": "deleted"
-}
-```
-
-**Error Responses:**
-- `404`: Product not found
-- `500`: Deletion failed
-
-**Note**: Deleting a product does NOT delete associated feedback (feedback.product remains as-is)
-
----
-
-### Authentication
-
-#### `POST /auth/token`
-Login to obtain JWT access token
-
-**Request Body (Form Data - application/x-www-form-urlencoded):**
-```
-username=admin
-password=admin
-grant_type=password
-scope=
-```
-
-**Response:**
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTcwMDAwMDAwMCwiaWF0IjoxNzAwMDAwMDAwfQ.signature",
-  "token_type": "bearer"
-}
-```
-
-**Usage**: Include token in subsequent requests:
-```
-Authorization: Bearer <access_token>
-```
-
-**Token Lifetime**: Configurable via `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 60 minutes)
-
-**Sliding Expiration**: 
-- Tokens automatically refresh when within 50% of expiration
-- Backend sends `X-New-Token` header on successful authenticated requests
-- Frontend automatically detects and stores refreshed tokens
-
-**Error Responses:**
-- `401`: Incorrect username or password
-
----
-
-#### `POST /auth/change-password` 🔒 Admin Only
-Change admin password
-
-**Authentication**: Required
-
-**Request Body:**
-```json
-{
-  "current_password": "admin",
-  "new_password": "newSecurePassword123"
-}
-```
-
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
-
-**Validation:**
-- `new_password` must be at least 6 characters
-- `current_password` must match existing password
-
-**Error Responses:**
-- `400`: Invalid input or incorrect current password
-- `401`: Unauthorized
-
----
-
-### Feedback Endpoints
-
-#### `POST /api/translate`
-Analyze text without saving to database (for preview/testing)
-
-**Request Body:**
-```json
-{
-  "text": "This product is amazing!"
-}
-```
-
-**Response:**
-```json
-{
-  "translated_text": "This product is amazing!",
-  "sentiment": "positive",
-  "language": "en",
-  "language_confidence": 0.99
-}
-```
-
+POST /api/feedback — Analyze and store feedback.
+POST /api/translate — Analyze (translate + sentiment) without storing.
+GET /api/feedback — List feedback with filters (product, language, sentiment).
+GET /api/stats — Sentiment overview and percentages.
+GET /api/products — List available products.
+POST /api/products — Create a new product (admin only).
+DELETE /api/products/{product_id} — Delete a product (admin only).
+DELETE /api/feedback/all — Delete all feedback matching filters (admin only).
+DELETE /api/feedback/{feedback_id} — Delete a single feedback entry (admin only).
+DELETE /api/feedback — Bulk delete feedback by IDs (admin only).
+GET /api/gemini/models — List available Gemini models (admin only).
+GET /api/gemini/current-model — Get current Gemini model (admin only).
+POST /api/gemini/current-model — Update Gemini model (admin only).
+POST /auth/token — Obtain JWT access token (admin only).
+POST /auth/change-password — Change admin password.
 ---
 
 ## 🗄️ Data Schema
@@ -862,9 +420,8 @@ Stores all customer feedback entries with AI analysis results
 | `original_text` | STRING | No | Original feedback text (any language) |
 | `translated_text` | STRING | Yes | English translation from Gemini |
 | `sentiment` | STRING | No | Classification: "positive", "neutral", or "negative" |
-| `product` | STRING | Yes | Associated product name |
+| `product` | STRING | No | Associated product name (must match a product in the products table) |
 | `language` | STRING | Yes | ISO 639-1 language code (e.g., "en", "fr", "es", "zh") |
-| `language_confidence` | FLOAT | Yes | AI confidence score for language detection (0.0-1.0) |
 | `created_at` | DATETIME(TZ) | No | Timestamp when feedback was created (UTC, auto-generated) |
 
 **Indexes**: 
@@ -881,7 +438,6 @@ translated_text: "This product is amazing!"
 sentiment: "positive"
 product: "General"
 language: "fr"
-language_confidence: 0.98
 created_at: "2025-11-13 10:30:00.123456+00"
 ```
 
@@ -948,7 +504,7 @@ products (1) ─────< (many) feedback
 
 ### Overview
 
-This application uses **Google Gemini 2.5 Pro** for three AI-powered tasks:
+This application uses **Google AI cloud generative models** for three AI-powered tasks:
 1. **Language Detection**: Identify the language of input text
 2. **Translation**: Convert text to English
 3. **Sentiment Analysis**: Classify as positive, neutral, or negative
@@ -972,16 +528,11 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 ### Gemini Model Configuration
 
-**Model**: `models/gemini-2.5-pro`
-- **Context Window**: 1 million tokens
-- **Max Output**: 8,192 tokens
-- **Capabilities**: Multilingual understanding, translation, reasoning
-
-**Why Gemini 2.5 Pro?**
-- Superior language detection across 100+ languages
-- High-quality translation with context awareness
-- Nuanced sentiment analysis (not just positive/negative)
-- Cost-effective for moderate usage
+ **Model Selection**: Admins can dynamically select the Gemini model used for translation and sentiment analysis via the dashboard settings tab.
+ **Supported Models**: The backend fetches and lists all available generative models for your API key (e.g., `models/gemini-2.5-pro`, `models/gemini-1.5-pro`, etc.). Only models with large context windows and generative capabilities are shown.
+ **Context Window**: Up to 1 million tokens (varies by model)
+ **Max Output**: Up to 8,192 tokens (varies by model)
+ **Capabilities**: Multilingual understanding, translation, reasoning
 
 ---
 
@@ -996,8 +547,7 @@ Your task is to:
 1. Detect the language of the input and return it as an ISO 639-1 code in the key "language".
 2. Translate the text into English and return it in "translated_text".
 3. Classify the sentiment as one of: 'positive', 'negative', or 'neutral' and return it in "sentiment".
-4. Optionally return a numeric confidence for language detection as "language_confidence".
-Provide the output ONLY in a valid JSON format with the keys: "translated_text", "sentiment", "language", and "language_confidence" (language_confidence may be null).
+Provide the output ONLY in a valid JSON format with the keys: "translated_text", "sentiment", and "language".
 Text: "{text}"
 '''
 ```
@@ -1007,7 +557,6 @@ Text: "{text}"
 - **JSON-Only Output**: Prevents extraneous text
 - **Standard Format**: ISO codes for language
 - **Constrained Sentiment**: Only 3 valid values
-- **Confidence Score**: Optional metric for quality assessment
 
 ---
 
@@ -1039,10 +588,9 @@ except json.JSONDecodeError as je:
 #### **Expected Response Format**
 ```json
 {
-  "translated_text": "English translation here",
-  "sentiment": "positive",
-  "language": "fr",
-  "language_confidence": 0.98
+   "translated_text": "English translation here",
+   "sentiment": "positive",
+   "language": "fr"
 }
 ```
 
@@ -1096,19 +644,7 @@ if not api_key:
 
 ### Performance Characteristics
 
-**Typical Latency:**
-- Short text (1-50 words): 2-3 seconds
-- Medium text (50-500 words): 3-5 seconds
-- Long text (500-2000 words): 5-10 seconds
-
-**Timeout Protection:**
-- Frontend: 20-second timeout with cancel button
-- Backend: Client disconnection detection
-
-**Cost Considerations:**
-- Gemini 2.5 Pro: Free tier includes 50 requests/day
-- Paid tier: $0.00025 per 1K characters (input) + $0.00075 per 1K characters (output)
-- Average feedback (100 chars): ~$0.0001 per analysis
+Frontend: 60-second timeout with cancel button
 
 ---
 
@@ -1150,7 +686,6 @@ ar = Arabic     hi = Hindi      ru = Russian
 4. **Regional Dialects**
    - Example: Cantonese vs. Mandarin
    - Both may be classified as "zh" (Chinese)
-   - language_confidence may be lower
 
 5. **Emoji Interpretation**
    - Example: "This product 😊😊😊"
@@ -1186,6 +721,10 @@ backend/
 ├── requirements.txt     # Python dependencies
 ├── Dockerfile           # Container image definition
 └── .env                 # Environment variables (not committed)
+├── pytest.ini           # Pytest configuration for backend tests
+├── tests/               # Backend unit tests (see test files section above)
+├── htmlcov/             # Coverage reports (generated)
+└── __pycache__/         # Python bytecode cache (auto-generated)
 ```
 
 #### **Key Features**
@@ -1221,6 +760,7 @@ Token near expiry? → Backend sends X-New-Token → Frontend updates token
 async def get_db():
     async with AsyncSessionLocal() as db:
         yield db  # Dependency injection into routes
+   # Session is automatically closed after request
 ```
 
 **6. Error Handling**
@@ -1244,6 +784,9 @@ frontend/
 │   │   └── Submit.jsx       # Feedback submission form
 │   └── utils/
 │       └── fetchWithAuth.js # Auth-aware fetch wrapper
+│   ├── tests/              # Frontend unit tests (see test files section above)
+├── public/                  # Static assets (favicon, manifest, etc.)
+├── coverage/                # Frontend test coverage reports (generated)
 ├── index.html               # HTML template
 ├── vite.config.mjs          # Vite configuration
 ├── package.json             # Node dependencies
@@ -1271,7 +814,8 @@ App.jsx (Root)
     │   └── Real-time Feedback Display
     └── Settings (Admin)
         ├── Product Management
-        └── Password Change
+        ├──  Password Change
+        └── Gemini Model Selector
 ```
 
 **2. State Management**
@@ -1334,40 +878,48 @@ const response = await fetchWithAuth('/api/feedback')
 
 ---
 
-### Communication Flow
+### Communication Flow (Two-Phase Submission)
 
-```
-┌─────────────┐          ┌─────────────┐          ┌──────────────┐
-│   Browser   │          │   Backend   │          │  PostgreSQL  │
-│  (React)    │          │  (FastAPI)  │          │  (Database)  │
-└──────┬──────┘          └──────┬──────┘          └──────┬───────┘
-       │                        │                        │
-       │  1. POST /api/feedback │                        │
-       │───────────────────────>│                        │
-       │                        │  2. Call Gemini API    │
-       │                        │───────────────────>    │
-       │                        │  3. Get AI response    │
-       │                        │<───────────────────    │
-       │                        │                        │
-       │                        │  4. INSERT INTO        │
-       │                        │───────────────────────>│
-       │                        │  5. Return saved row   │
-       │                        │<───────────────────────│
-       │  6. Return JSON        │                        │
-       │<───────────────────────│                        │
-       │                        │                        │
-       │  7. Dispatch event     │                        │
-       │  'feedback:created'    │                        │
-       │                        │                        │
-       │  8. Dashboard refresh  │                        │
-       │  GET /api/stats        │                        │
-       │───────────────────────>│  9. SELECT COUNT(*)    │
-       │                        │───────────────────────>│
-       │                        │  10. Return aggregates │
-       │                        │<───────────────────────│
-       │  11. Update UI         │                        │
-       │<───────────────────────│                        │
-       │                        │                        │
+This sequence diagram illustrates the two-phase submission process, from initial analysis to saving the feedback and updating the dashboard.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Browser as React App
+    participant Backend as FastAPI
+    participant Gemini
+    participant Database as PostgreSQL
+
+    User->>Browser: Enters feedback and clicks "Submit & Analyze"
+
+    par Phase 1: Analyze (Cancellable)
+        Browser->>Backend: 1. POST /api/translate
+        note right of Browser: Shows "Analyzing..." spinner
+        Backend->>Gemini: 2. Generate content (translate, sentiment)
+        Gemini-->>Backend: 3. AI analysis result (JSON)
+        Backend-->>Browser: 4. Returns analysis
+        note right of Browser: Displays analysis to User for confirmation
+    end
+
+    User->>Browser: Confirms the analysis
+
+    par Phase 2: Save
+        Browser->>Backend: 5. POST /api/feedback
+        note right of Browser: Shows "Saving..."
+        Backend->>Database: 6. INSERT INTO feedback
+        Database-->>Backend: 7. Returns saved record
+        Backend-->>Browser: 8. Returns success (201 Created)
+    end
+
+    Browser->>Browser: 9. Dispatches 'feedback:created' event
+
+    par Phase 3: Dashboard Refresh
+        Browser->>Backend: 10. GET /api/stats & /api/feedback
+        Backend->>Database: 11. SELECT COUNT(*), SELECT * FROM feedback
+        Database-->>Backend: 12. Returns aggregated stats and recent feedback
+        Backend-->>Browser: 13. Returns updated data
+        Browser->>User: 14. Updates dashboard UI in real-time
+    end
 ```
 
 ---
@@ -1413,11 +965,39 @@ services:
 - No user registration flow
 
 **Workaround**: 
-```sql
--- Manually add admin users via SQL
-INSERT INTO admin_users (username, password_hash) 
-VALUES ('admin2', '$2b$12$hashed_password_here');
-```
+To manually add a new admin user, follow these steps:
+
+1. **Generate a bcrypt password hash**
+    - Use Python to securely hash your password:
+       ```python
+       import bcrypt
+       password = b"your_new_password"
+       hashed = bcrypt.hashpw(password, bcrypt.gensalt())
+       print(hashed.decode())
+       ```
+    - Replace `your_new_password` with your desired password. Copy the output string.
+
+2. **Connect to your PostgreSQL database**
+    - If using Docker Compose:
+       ```powershell
+       docker compose exec db psql -U user -d feedbackdb
+       ```
+
+3. **Insert the new admin user**
+    - In the psql shell, run:
+       ```sql
+       INSERT INTO admin_users (username, password_hash)
+       VALUES ('admin2', '$2b$12$your_actual_hash_here');
+       ```
+    - Replace `'admin2'` and the hash with your values.
+
+4. **Verify the user was added**
+    - Run:
+       ```sql
+       SELECT * FROM admin_users;
+       ```
+
+**Note:** Always use bcrypt hashes for passwords. Never store plain text passwords.
 
 **Planned**: Multi-admin support in future release
 
@@ -1463,20 +1043,15 @@ VALUES ('admin2', '$2b$12$hashed_password_here');
 
 **Mitigation**:
 - Encourage single-language feedback
-- Use `language_confidence` to flag low-quality detections
+- Use `language_confidence` to flag low-quality detections (planned)
 
 ---
 
 #### **5. No Feedback Editing**
 **Issue**: Once submitted, feedback cannot be modified
 - Only deletion is supported
-- No edit history/audit trail
 
-**Rationale**: 
-- Intentional design to maintain data integrity
-- Prevents tampering with historical sentiment
-
-**Workaround**: Delete and re-submit
+**Workaround**: User shall re-submit feedback again, however the old feedback is still maintained
 
 ---
 
@@ -1491,46 +1066,6 @@ VALUES ('admin2', '$2b$12$hashed_password_here');
 
 ---
 
-### Known Bugs
-
-#### **1. Token Expiration During Sleep Mode**
-**Scenario**: Computer sleeps mid-session → Token expires → User sees error on wake
-
-**Status**: 
-- User will see "Token expired" message
-- Must log in again
-- No data loss
-
-**Mitigation**: 
-- Frontend proactive logout timer handles most cases
-- Token refresh happens automatically for active users
-
----
-
-#### **2. Modal Scroll Lock on Small Screens**
-**Scenario**: Delete confirmation modals with very long messages overflow viewport
-
-**Status**: 
-- Rare occurrence (messages usually short)
-- Acceptable for MVP
-
-**Workaround**: User can still scroll to see buttons
-
-**Fix**: Add `max-height` + `overflow-y: auto` to modal body
-
----
-
-#### **3. Dashboard Refresh Race Condition**
-**Scenario**: Rapid submission + deletion → Dashboard shows stale data
-
-**Status**: 
-- Resolved by sequential refresh operations
-- Use of `Promise.allSettled` ensures all refreshes complete
-
-**Impact**: None (fixed in current version)
-
----
-
 ### Performance Considerations
 
 #### **1. Gemini API Latency**
@@ -1540,10 +1075,12 @@ VALUES ('admin2', '$2b$12$hashed_password_here');
 
 **Status**: Expected behavior with cloud AI
 
-**Mitigation**:
-- 20-second timeout with user-friendly cancel button
-- Two-phase submission allows early cancellation
-- Loading indicators with elapsed time display
+**Mitigation (Current Implementation):**
+- Frontend uses a 60-second timeout for Gemini API calls
+- User-friendly cancel button during analysis phase
+- Two-phase submission: "Analyze" (cancellable) then "Save" (commits to DB)
+- Loading indicators show real-time progress and elapsed time
+- Early cancellation prevents unnecessary database writes
 
 ---
 
@@ -1574,6 +1111,16 @@ VALUES ('admin2', '$2b$12$hashed_password_here');
 - Code splitting with React.lazy()
 - Route-based chunking
 - Tree-shaking unused dependencies
+
+---
+
+#### **4. Cold Start Times on Free Tier**
+**Issue**: Free tier services (Render) have cold starts after inactivity
+
+**Impact**: 30s+ delay for first request after sleep
+
+**Mitigation**:
+- Health checks (cron-job.org) are used to keep services warm
 
 ---
 
@@ -1627,284 +1174,189 @@ VALUES ('admin2', '$2b$12$hashed_password_here');
 
 ### Common Issues & Solutions
 
-#### **Problem: Backend Won't Start**
+#### Backend Won't Start
 ```
 ERROR: Could not connect to the database after multiple attempts
 ```
-
 **Solutions:**
 1. Check PostgreSQL container status:
    ```bash
-   docker-compose logs db
+   docker compose logs db
    ```
-
-2. Ensure no port conflicts:
-   ```bash
-   # Windows PowerShell
+2. Ensure no port conflicts (Windows):
+   ```powershell
    netstat -an | Select-String "5432"
-   
-   # Linux/Mac
-   lsof -i :5432
    ```
-
 3. Wait 10-15 seconds for DB initialization (first run only)
-
 4. Restart services:
    ```bash
-   docker-compose down
-   docker-compose up --build
+   docker compose down
+   docker compose up --build
    ```
 
 ---
 
-#### **Problem: Gemini API Errors**
+#### Gemini API Errors
 ```
 HTTP 400: AI content generation failed. Empty response from Gemini API.
 ```
-
 **Solutions:**
 1. Verify API key in `.env`:
    ```bash
    cat .env | grep GOOGLE_API_KEY
    ```
-
 2. Test API key directly:
    ```bash
-   curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=YOUR_KEY" \
-     -H 'Content-Type: application/json' \
-     -d '{"contents":[{"parts":[{"text":"Hello"}]}]}'
+   curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=YOUR_KEY" -H 'Content-Type: application/json' -d '{"contents":[{"parts":[{"text":"Hello"}]}]}'
    ```
-
-3. Check quota limits:
-   - Visit [Google AI Studio](https://aistudio.google.com/)
-   - Navigate to "API Keys" section
-   - Check usage metrics
-
-4. Verify model name:
-   - Ensure `main.py` uses `models/gemini-2.5-pro`
-   - Check Gemini documentation for model availability
+3. Check quota limits in [Google AI Studio](https://aistudio.google.com/)
+4. Verify model name in backend config
 
 ---
 
-#### **Problem: Token Expired Immediately**
+#### Token Expired Immediately
 ```
 Login works but "Token expired" error appears within seconds
 ```
-
 **Solutions:**
 1. Check `ACCESS_TOKEN_EXPIRE_MINUTES` in `.env`:
    ```bash
    cat .env | grep ACCESS_TOKEN_EXPIRE_MINUTES
    ```
-
 2. For debugging, set to 1 minute:
    ```
    ACCESS_TOKEN_EXPIRE_MINUTES=1
    ```
-
-3. For production, use 60+ minutes:
-   ```
-   ACCESS_TOKEN_EXPIRE_MINUTES=60
-   ```
-
-4. Verify system clock synchronization:
-   - JWT uses UTC timestamps
-   - Ensure server time is accurate
-
-5. Clear browser cache and localStorage:
-   ```javascript
-   // Browser console
-   localStorage.clear()
-   location.reload()
-   ```
+3. Verify system clock synchronization (JWT uses UTC)
 
 ---
 
-#### **Problem: Hot-Reload Not Working**
+#### Hot-Reload Not Working
 ```
 Code changes don't reflect in running application
 ```
-
 **Solutions:**
-
-**Backend (Python):**
+**Backend:**
 ```bash
-# Restart backend service
-docker-compose restart backend
-
-# Or rebuild
-docker-compose up --build backend
+docker compose restart backend
+docker compose up --build backend
 ```
-
-**Frontend (React):**
+**Frontend:**
 ```bash
-# Restart frontend service
-docker-compose restart frontend
-
-# Or check Vite logs
-docker-compose logs -f frontend
+docker compose restart frontend
+docker compose logs -f frontend
 ```
-
-**Nuclear Option:**
+If issues persist, rebuild all:
 ```bash
-docker-compose down
-docker-compose up --build
+docker compose down
+docker compose up --build
 ```
 
 ---
 
-#### **Problem: CORS Errors**
+#### CORS Errors
 ```
 Access to fetch at 'http://localhost:8000/api/feedback' has been blocked by CORS policy
 ```
-
 **Solutions:**
 1. Check `ALLOWED_ORIGINS` in `.env`:
    ```
    ALLOWED_ORIGINS=http://localhost:3000
    ```
-
 2. Ensure frontend runs on correct port:
    ```bash
-   # Should show frontend on :3000
-   docker-compose ps
+   docker compose ps
    ```
-
 3. Restart backend after `.env` changes:
    ```bash
-   docker-compose restart backend
+   docker compose restart backend
    ```
-
-4. Clear browser cache:
-   - Hard refresh: `Ctrl + Shift + R` (Windows/Linux)
-   - Or: `Cmd + Shift + R` (Mac)
+4. Hard refresh browser cache
 
 ---
 
-#### **Problem: Database Connection Refused**
+#### Database Connection Refused
 ```
 ERROR: could not connect to server: Connection refused
 ```
-
 **Solutions:**
 1. Check if database container is running:
    ```bash
-   docker-compose ps db
+   docker compose ps db
    ```
-
 2. Inspect database logs:
    ```bash
-   docker-compose logs db
+   docker compose logs db
    ```
-
-3. Verify port availability:
+3. Remove volumes and restart:
    ```bash
-   # Windows PowerShell
-   Test-NetConnection -ComputerName localhost -Port 5432
-   
-   # Linux/Mac
-   telnet localhost 5432
-   ```
-
-4. Remove volumes and restart:
-   ```bash
-   docker-compose down -v
-   docker-compose up --build
+   docker compose down -v
+   docker compose up --build
    ```
 
 ---
 
-#### **Problem: Frontend Shows Blank Page**
+#### Frontend Shows Blank Page
 ```
 White screen, no errors in terminal
 ```
-
 **Solutions:**
-1. Check browser console:
-   - Open DevTools: `F12`
-   - Look for JavaScript errors
-
+1. Check browser console for errors (F12)
 2. Verify frontend logs:
    ```bash
-   docker-compose logs frontend
+   docker compose logs frontend
    ```
-
-3. Check Vite server status:
-   - Should see "Local: http://localhost:3000"
-   - Should see "ready in Xms"
-
-4. Clear browser cache and hard refresh
-
+3. Check Vite server status
+4. Hard refresh browser cache
 5. Rebuild frontend:
    ```bash
-   docker-compose up --build frontend
+   docker compose up --build frontend
    ```
 
 ---
 
-#### **Problem: Admin Login Fails**
+#### Admin Login Fails
 ```
 HTTP 401: Incorrect username or password
 ```
-
 **Solutions:**
 1. Verify credentials in `.env`:
    ```
    ADMIN_USERNAME=admin
    ADMIN_PASSWORD=admin
    ```
-
 2. Check if admin user was seeded:
    ```bash
-   # Access database
-   docker-compose exec db psql -U user -d feedbackdb
-   
-   # Query admin users
+   docker compose exec db psql -U user -d feedbackdb
    SELECT * FROM admin_users;
    ```
-
 3. Force password reset:
    ```
-   # In .env
    ADMIN_FORCE_RESET=true
-   
-   # Restart backend
-   docker-compose restart backend
-   
-   # Change back to false
+   docker compose restart backend
    ADMIN_FORCE_RESET=false
    ```
-
 4. Check backend logs for seeding messages:
    ```bash
-   docker-compose logs backend | grep "admin"
+   docker compose logs backend
    ```
 
 ---
 
 ### Debug Mode
 
-#### **Enable Verbose Logging**
-
+#### Enable Verbose Logging
 **Backend:**
 ```python
-# In main.py (add at top)
 import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
-
 **Frontend:**
-```javascript
-// Already has console.log statements
-// Check browser console (F12)
-```
+Use browser console (F12) for logs
 
-#### **Inspect Database**
+#### Inspect Database
 ```bash
-# Access PostgreSQL shell
-docker-compose exec db psql -U user -d feedbackdb
-
-# Useful queries
+docker compose exec db psql -U user -d feedbackdb
 SELECT COUNT(*) FROM feedback;
 SELECT * FROM feedback ORDER BY created_at DESC LIMIT 5;
 SELECT sentiment, COUNT(*) FROM feedback GROUP BY sentiment;
@@ -1936,63 +1388,6 @@ SELECT * FROM admin_users;
 - [React Tutorial](https://react.dev/learn) - Official React course
 - [Docker for Beginners](https://docker-curriculum.com/) - Container basics
 - [PostgreSQL Tutorial](https://www.postgresqltutorial.com/) - SQL fundamentals
-
-### Tools & Extensions
-- **VS Code**: Recommended IDE
-  - Extensions: Python, ESLint, Prettier, Docker
-- **Postman**: API testing
-- **DBeaver**: Database management
-- **React DevTools**: Browser extension for debugging
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Here are areas for improvement:
-
-### Feature Ideas
-
-1. **Multi-language UI** (i18n)
-   - Translate dashboard to multiple languages
-   - Use `react-i18next` or similar
-
-2. **User Authentication** (separate from admin)
-   - Allow end-users to create accounts
-   - View their own feedback history
-
-3. **Export Feedback** (CSV, JSON, Excel)
-   - Download filtered feedback
-   - Scheduled reports via email
-
-4. **Email Notifications**
-   - Alert on negative sentiment
-   - Daily/weekly summaries
-   - Integration with SendGrid/AWS SES
-
-5. **Feedback Trends** (Time-series charts)
-   - Sentiment over time
-   - Language distribution trends
-   - Product comparison charts
-
-6. **Dark Mode** Toggle
-   - CSS variables already in place
-   - Add theme switcher
-
-7. **Bulk Import** from CSV
-   - Upload existing feedback data
-   - Batch processing endpoint
-
-8. **Webhook Support**
-   - Trigger external systems on new feedback
-   - Integrate with Slack, Teams, etc.
-
-9. **Advanced Search**
-   - Full-text search on feedback
-   - PostgreSQL `ts_vector` implementation
-
-10. **Mobile App**
-    - React Native version
-    - Native iOS/Android apps
 
 ---
 
@@ -2042,4 +1437,4 @@ For issues, questions, or feature requests:
 
 **Built with ❤️ using FastAPI, React, PostgreSQL, and Google Gemini AI**
 
-*Last Updated: November 13, 2025*
+*Last Updated: November 16, 2025*

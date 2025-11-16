@@ -286,7 +286,6 @@ async def test_create_tables_retry(monkeypatch):
     await main.create_tables(retries=2, base_delay=0.01)
     assert call_count["count"] == 2
 
-@pytest.mark.asyncio
 def test_lifespan_startup(monkeypatch):
     # Patch Gemini config and DB session
     monkeypatch.setattr("google.generativeai.configure", lambda api_key: None)

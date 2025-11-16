@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   # Our FastAPI backend service
   backend:

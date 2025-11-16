@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react'
 // Get API base URL from environment variable (set at build time)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr, setIsSubmitting }){
+export default function Submit({ products = [], productsLoading = false, productsError, setFeedbackMsg, setFeedbackErr, setIsSubmitting }){
   // Persisted state keys
   const STORAGE_KEY = 'pendingFeedbackAnalysis'
   const FEEDBACK_TEXT_KEY = 'feedbackText'
@@ -34,6 +34,8 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       setIsLoadingProducts(false);
     }
   }, [])
+    // Ensure productsError is always defined and avoid naming conflict
+    const productsLoadError = typeof productsError !== 'undefined' ? productsError : null;
   const startRef = useRef(0)
   const abortRef = useRef(null)
   const cancelReasonRef = useRef(null) // 'user' | 'timeout' | null
@@ -248,6 +250,35 @@ export default function Submit({ products = [], productsLoading = false, setFeed
     <form onSubmit={handleSubmit}>
       <p className="form-subtitle">Share your experience in any language - we'll analyze it for you</p>
       {productsLoading && <div className="loading">Loading products...</div>}
+      {(productsLoadError && products.length === 0) && (
+        <div
+          className="error-message"
+          role="alert"
+          style={{
+            marginTop: 20,
+            marginBottom: 20,
+            color: '#b91c1c',
+            background: 'linear-gradient(90deg, #fee2e2 0%, #fca5a5 100%)',
+            border: '1.5px solid #f87171',
+            boxShadow: '0 2px 8px rgba(249, 115, 115, 0.08)',
+            padding: '18px 20px',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '16px',
+            fontSize: '16px',
+            fontWeight: 500
+          }}
+        >
+          <span style={{fontSize: '28px', marginRight: '8px', flexShrink: 0}}>🚫</span>
+          <div style={{flex: 1}}>
+            <div style={{fontWeight: 700, fontSize: '18px', marginBottom: '6px'}}>Unable to load products</div>
+            <div style={{fontWeight: 400, fontSize: '15px', marginTop: '8px', color: '#7f1d1d'}}>
+              The server may be <b>down</b> or <b>unreachable</b>. Please check your connection or try again later.
+            </div>
+          </div>
+        </div>
+      )}
       <div className="form-group">
         <label htmlFor="product">Product</label>
         <select

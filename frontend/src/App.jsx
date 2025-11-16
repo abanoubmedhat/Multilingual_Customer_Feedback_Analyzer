@@ -719,6 +719,7 @@ export default function App(){
               key={token ? 'auth' : 'guest'} 
               products={products} 
               productsLoading={productsLoading}
+              productsError={productsError}
               setFeedbackMsg={setFeedbackMsg}
               setFeedbackErr={setFeedbackErr}
               setIsSubmitting={setIsSubmitting}

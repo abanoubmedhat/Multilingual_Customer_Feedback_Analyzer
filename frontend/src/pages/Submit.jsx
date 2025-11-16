@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react'
 // Get API base URL from environment variable (set at build time)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr }){
+export default function Submit({ products = [], productsLoading = false, setFeedbackMsg, setFeedbackErr, setIsSubmitting }){
   // Persisted state keys
   const STORAGE_KEY = 'pendingFeedbackAnalysis'
   const [text, setText] = useState('')
@@ -70,6 +70,7 @@ export default function Submit({ products = [], productsLoading = false, setFeed
     if (!product) { setError('Please select a product'); return }
 
   setLoading(true)
+  if (setIsSubmitting) setIsSubmitting(true)
   setPhase('analyzing')
     const controller = new AbortController()
     abortRef.current = controller
@@ -185,6 +186,7 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       }))
     }finally{
       setLoading(false)
+      if (setIsSubmitting) setIsSubmitting(false)
       abortRef.current = null
     }
   }
@@ -195,18 +197,23 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       abortRef.current.abort()
       setPhase(null)
       setLoading(false)
+      if (setIsSubmitting) setIsSubmitting(false)
       setAnalysisResult(null)
       setCompletedSteps([])
+      setProduct('') // Unselect product
+      setText('') // Erase feedback area
       setError('Analysis cancelled - no feedback was saved.')
       // Persist cancel state
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         phase: null,
-        text,
-        product,
+        text: '',
+        product: '',
         analysisResult: null,
         completedSteps: [],
         error: 'Analysis cancelled - no feedback was saved.'
       }))
+      // Auto-dismiss cancellation notification after 2 seconds
+      setTimeout(() => setError(null), 2000)
     }
   }
 

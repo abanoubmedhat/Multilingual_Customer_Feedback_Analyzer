@@ -12,6 +12,7 @@ from sqlalchemy.pool import NullPool, StaticPool
 # Set test environment variables before importing app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key"
+os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
 os.environ["GOOGLE_API_KEY"] = "test-api-key"
 os.environ["ADMIN_USERNAME"] = "testadmin"
 os.environ["ADMIN_PASSWORD"] = "testpass"
@@ -66,10 +67,18 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 @pytest.fixture(scope="function")
 async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with dependency overrides."""
+    from contextlib import asynccontextmanager
+
     async def override_get_db():
         yield db_session
     
+    @asynccontextmanager
+    async def override_lifespan(app):
+        # Do nothing during startup/shutdown for tests
+        yield
+
     app.dependency_overrides[get_db] = override_get_db
+    app.router.lifespan_context = override_lifespan
     
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -78,6 +87,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
     
     app.dependency_overrides.clear()
+    # It's good practice to restore the original lifespan if needed, but clear() is often enough
 
 
 @pytest.fixture(scope="function")
@@ -107,6 +117,11 @@ async def admin_token(client: AsyncClient, admin_user: AdminUser) -> str:
     assert response.status_code == 200
     return response.json()["access_token"]
 
+@pytest.fixture(scope="function")
+async def admin_token_headers(admin_token: str) -> dict:
+    """Get admin token headers for authenticated requests."""
+    return {"Authorization": f"Bearer {admin_token}"}
+
 
 @pytest.fixture(scope="function")
 async def sample_product(db_session: AsyncSession) -> Product:
@@ -119,19 +134,23 @@ async def sample_product(db_session: AsyncSession) -> Product:
 
 
 @pytest.fixture(scope="function")
-async def sample_feedback(db_session: AsyncSession, sample_product: Product) -> Feedback:
-    """Create sample feedback."""
-    feedback = Feedback(
-        original_text="This is a test feedback",
-        translated_text="This is a test feedback",
-        sentiment="positive",
-        language="en",
-        product=sample_product.name
-    )
-    db_session.add(feedback)
-    await db_session.commit()
-    await db_session.refresh(feedback)
-    return feedback
+async def sample_feedback(db_session: AsyncSession, sample_product: Product):
+    """A factory fixture to create sample feedback entries."""
+    async def _create_feedback(**kwargs):
+        defaults = {
+            "original_text": "This is a test feedback",
+            "translated_text": "This is a test feedback",
+            "sentiment": "positive",
+            "language": "en",
+            "product": sample_product.name,
+        }
+        defaults.update(kwargs)
+        feedback = Feedback(**defaults)
+        db_session.add(feedback)
+        await db_session.commit()
+        await db_session.refresh(feedback)
+        return feedback
+    return _create_feedback
 
 
 @pytest.fixture(scope="function")

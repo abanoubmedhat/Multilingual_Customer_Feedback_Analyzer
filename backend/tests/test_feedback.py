@@ -73,7 +73,7 @@ async def test_create_feedback_without_product(client: AsyncClient, mock_gemini_
             json={"text": "Test feedback without product"}
         )
     
-    # Product is required, so should get 422 validation error
+    # Product is mandatory, so should get 422 validation error
     assert response.status_code == 422
     assert "product" in str(response.json()).lower()
 

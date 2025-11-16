@@ -100,29 +100,6 @@ async def create_tables(retries: int = 10, base_delay: float = 1.0):
                 raise
             await asyncio.sleep(base_delay * attempt)
 
-# --- Application Lifespan (for DB table creation) ---
-async def create_tables(retries: int = 10, base_delay: float = 1.0):
-    """Attempt to create DB tables, retrying while the DB service is starting.
-
-    SQLAlchemy's create_all will fail if Postgres isn't accepting connections yet
-    (race during container startup). Retry with exponential backoff so the
-    backend can start once the DB is ready.
-    """
-    for attempt in range(1, retries + 1):
-        try:
-            async with engine.begin() as conn:
-                # This creates the 'feedback' table based on our models.py definition
-                await conn.run_sync(models.Base.metadata.create_all)
-            print("Database tables created or already exist.")
-            return
-        except Exception as e:
-            wait = base_delay * attempt
-            print(f"Database not ready (attempt {attempt}/{retries}): {e}. Retrying in {wait}s...")
-            await asyncio.sleep(wait)
-
-    # If we get here, all retries failed
-    raise RuntimeError("Could not connect to the database after multiple attempts")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Application startup: Creating database tables...")
@@ -143,10 +120,11 @@ async def lifespan(app: FastAPI):
     admin_user = os.getenv("ADMIN_USERNAME", "admin")
     admin_pass = os.getenv("ADMIN_PASSWORD", "admin")
     force_reset = os.getenv("ADMIN_FORCE_RESET", "false").lower() in ("1", "true", "yes")
-    try:
-        async with AsyncSession(engine) as s:
-            from sqlalchemy import select as sa_select
-            res = await s.execute(sa_select(models.AdminUser).where(models.AdminUser.username == admin_user))
+    
+    # Use a session from the dependency system for seeding
+    async for s in get_db():
+        try:
+            res = await s.execute(select(models.AdminUser).where(models.AdminUser.username == admin_user))
             user = res.scalars().first()
             if not user:
                 hashed = pwd_context.hash(admin_pass)
@@ -155,26 +133,16 @@ async def lifespan(app: FastAPI):
                 print(f"Seeded admin user '{admin_user}'.")
             elif force_reset:
                 user.password_hash = pwd_context.hash(admin_pass)
-                s.add(user)
                 await s.commit()
                 print(f"Reset password for admin user '{admin_user}'.")
-    except Exception as e:
-        print(f"Admin seed error: {e}")
-    # If no products exist, create a default one so the dropdown is never empty
-    try:
-        async with AsyncSession(engine) as s:
+
             count_res = await s.execute(select(func.count()).select_from(models.Product))
             count = count_res.scalar() or 0
             if count == 0:
                 s.add(models.Product(name="General"))
                 await s.commit()
                 print("Seeded default product 'General'.")
-    except Exception as e:
-        print(f"Default product seed error: {e}")
-    
-    # Initialize default Gemini model setting if not exists
-    try:
-        async with AsyncSession(engine) as s:
+
             res = await s.execute(select(models.Settings).where(models.Settings.key == "gemini_model"))
             setting = res.scalars().first()
             if not setting:
@@ -182,8 +150,11 @@ async def lifespan(app: FastAPI):
                 s.add(models.Settings(key="gemini_model", value="models/gemini-2.5-flash"))
                 await s.commit()
                 print("Seeded default Gemini model setting: gemini-2.5-flash")
-    except Exception as e:
-        print(f"Gemini model setting seed error: {e}")
+        except Exception as e:
+            print(f"Database seeding error during startup: {e}")
+            await s.rollback()
+        finally:
+            await s.close()
     
     yield
     print("Application shutdown.")
@@ -420,30 +391,32 @@ def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash"
 
 # --- Auth Endpoints ---
 @app.post("/auth/token")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    async with AsyncSession(engine) as s:
-        res = await s.execute(select(models.AdminUser).where(models.AdminUser.username == form_data.username))
-        user = res.scalars().first()
-        if not user or not pwd_context.verify(form_data.password, user.password_hash):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
-        token = create_access_token({"sub": user.username, "role": "admin"})
-        return {"access_token": token, "token_type": "bearer"}
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+    res = await db.execute(select(models.AdminUser).where(models.AdminUser.username == form_data.username))
+    user = res.scalars().first()
+    if not user or not pwd_context.verify(form_data.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
+    token = create_access_token({"sub": user.username, "role": "admin"})
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.post("/auth/change-password")
-async def change_password(payload: schemas.AdminPasswordChange, _: dict = Depends(get_current_admin)):
-    async with AsyncSession(engine) as s:
-        # current admin username from token is not returned here; re-issue query for any admin
-        # Since we only support a single admin, update the first row
-        res = await s.execute(select(models.AdminUser))
-        user = res.scalars().first()
-        if not user:
-            raise HTTPException(status_code=400, detail="Admin not initialized")
-        if not pwd_context.verify(payload.current_password, user.password_hash):
-            raise HTTPException(status_code=400, detail="Current password is incorrect")
-        user.password_hash = pwd_context.hash(payload.new_password)
-        s.add(user)
-        await s.commit()
-        return {"status": "ok"}
+async def change_password(
+    payload: schemas.AdminPasswordChange, 
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_admin)
+):
+    res = await db.execute(select(models.AdminUser))
+    user = res.scalars().first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Admin not initialized")
+    if not pwd_context.verify(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    user.password_hash = pwd_context.hash(payload.new_password)
+    await db.commit()
+    return {"status": "ok"}
 @app.get("/api/products", response_model=list[schemas.Product])
 async def list_products(db: AsyncSession = Depends(get_db)):
     res = await db.execute(select(models.Product).order_by(models.Product.name.asc()))

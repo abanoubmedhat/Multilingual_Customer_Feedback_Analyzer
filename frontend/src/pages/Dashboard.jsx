@@ -6,6 +6,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   // State declarations
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState(null)
   const [products, setProducts] = useState([])
   const [languages, setLanguages] = useState([])
@@ -35,6 +36,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
 
   async function loadFilters(){
     try{
+      setIsProcessing(true)
       const res = await fetchWithAuth('/api/feedback?limit=1000')
       if (!res.ok) return
   const data = await res.json()
@@ -74,11 +76,14 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setSampleFeedback(feedbackList.slice(0,6))
     }catch(err){
       console.error('Error loading filters:', err)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   async function loadFeedbackPage(p = 0){
     try{
+      setIsProcessing(true)
       const params = new URLSearchParams()
       if (selectedProduct) params.append('product', selectedProduct)
       if (selectedLanguage) params.append('language', selectedLanguage)
@@ -94,6 +99,8 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setPage(p)
     }catch(err){
       console.error('Error loading feedback page:', err)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -236,6 +243,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     
     // Create a promise that resolves when user confirms or rejects when cancelled
     return new Promise((resolve, reject) => {
+      setIsProcessing(true)
       setConfirmDelete({
         type: 'selected',
         count: selectedIds.length,
@@ -277,6 +285,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             reject(e) // Reject on error
           } finally {
             setConfirmDelete(null)
+            setIsProcessing(false)
           }
         },
         onCancel: () => {
@@ -292,6 +301,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     
     // Create a promise that resolves when user confirms or rejects when cancelled
     return new Promise((resolve, reject) => {
+      setIsProcessing(true)
       setConfirmDelete({
         type: 'all',
         count: totalFeedback,
@@ -361,6 +371,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             reject(e) // Reject on error
           } finally {
             setConfirmDelete(null)
+            setIsProcessing(false)
           }
         },
         onCancel: () => {
@@ -405,6 +416,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Products</option>
@@ -422,6 +434,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Languages</option>
@@ -439,6 +452,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Sentiments</option>
@@ -457,7 +471,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   setBulkError(null);
                   refreshAll(true);
                 }} 
-                disabled={loading}
+                disabled={loading || isProcessing}
                 title="Refresh data"
               >
                 🔄
@@ -472,7 +486,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={!selectedProduct && !selectedLanguage && !selectedSentiment}
+                disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
                 title="Clear all filters"
               >
                 ✖
@@ -511,6 +525,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Products</option>
@@ -528,6 +543,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Languages</option>
@@ -545,6 +561,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                     setBulkMsg(null);
                     setBulkError(null);
                   }}
+                  disabled={isProcessing}
                   className="filter-select"
                 >
                   <option value="">All Sentiments</option>
@@ -563,7 +580,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   setBulkError(null);
                   refreshAll(true);
                 }} 
-                disabled={loading}
+                disabled={loading || isProcessing}
                 title="Refresh data"
               >
                 🔄
@@ -578,7 +595,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={!selectedProduct && !selectedLanguage && !selectedSentiment}
+                disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
                 title="Clear all filters"
               >
                 ✖
@@ -793,20 +810,20 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             </ul>
 
             <div id="bulk-actions-bar" style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
-              <button className="btn-tertiary" style={{width:'auto'}} onClick={toggleAll} disabled={feedbackPage.length===0}>
+              <button className="btn-tertiary" style={{width:'auto'}} onClick={toggleAll} disabled={isProcessing || feedbackPage.length===0}>
                 {selectedIds.length === feedbackPage.length && feedbackPage.length>0 ? 'Unselect All' : 'Select All'}
               </button>
               <button
                 className="btn-danger"
                 style={{width:'auto'}}
                 onClick={deleteSelected}
-                disabled={selectedIds.length===0}
+                disabled={isProcessing || selectedIds.length===0}
               >Delete Selected ({selectedIds.length})</button>
               <button
                 className="btn-danger"
                 style={{width:'auto'}}
                 onClick={deleteAllFiltered}
-                disabled={totalFeedback===0}
+                disabled={isProcessing || totalFeedback===0}
               >{selectedProduct || selectedLanguage || selectedSentiment ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
               
               {/* View Options Dropdown */}
@@ -816,6 +833,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   className="btn-secondary"
                   style={{width:'auto'}}
                   onClick={()=>setShowFieldsMenu(s=>!s)}
+                  disabled={isProcessing}
                   title="Show/hide optional fields"
                 >
                   👁️ Show Fields {showFieldsMenu ? '▲' : '▼'}
@@ -923,7 +941,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                   className="page-size-select"
                   value={pageSize}
                   onChange={(e)=> {
-                    const v = parseInt(e.target.value, 10)
+                    const v = parseInt(e.target.value, 10);
                     if (!Number.isNaN(v)) setPageSize(v)
                   }}
                   aria-label="Items per page"
@@ -937,14 +955,14 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               <span aria-live="polite" aria-atomic="true">Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
               <button 
                 onClick={()=> loadFeedbackPage(Math.max(0, page-1))} 
-                disabled={page<=0}
+                disabled={isProcessing || page<=0}
                 aria-label="Go to previous page"
                 className="btn-secondary"
                 style={{width: 'auto'}}
               >Prev</button>
               <button 
                 onClick={()=> loadFeedbackPage(page+1)} 
-                disabled={(page+1)*pageSize >= totalFeedback}
+                disabled={isProcessing || (page+1)*pageSize >= totalFeedback}
                 aria-label="Go to next page"
                 className="btn-secondary"
                 style={{width: 'auto'}}

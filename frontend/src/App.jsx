@@ -317,6 +317,8 @@ export default function App(){
   const [activeTab, setActiveTab] = useState('dashboard')
   // Login modal state
   const [showLoginModal, setShowLoginModal] = useState(false)
+  // Feedback submission state
+  const [isSubmitting, setIsSubmitting] = useState(false)
   // Session expiry notification
   const [sessionExpiredMsg, setSessionExpiredMsg] = useState(null)
 
@@ -651,13 +653,7 @@ export default function App(){
           >
             📊 Dashboard
           </button>
-          <button 
-            className={activeTab === 'submit' ? 'nav-btn active' : 'nav-btn'}
-            onClick={() => setActiveTab('submit')}
-            aria-current={activeTab === 'submit' ? 'page' : undefined}
-          >
-            ✍️ Submit Feedback
-          </button>
+          {/* Removed Submit Feedback tab for admin view */}
           <button 
             className={activeTab === 'settings' ? 'nav-btn active' : 'nav-btn'}
             onClick={() => setActiveTab('settings')}
@@ -714,8 +710,8 @@ export default function App(){
 
         {/* Tab Content */}
       <div id="main-content" className="tab-content" role="main">
-        {/* Submit Tab - Always visible for non-authenticated, or when selected */}
-        {(!token || activeTab === 'submit') && (
+  {/* Submit Tab - Only visible for non-authenticated users */}
+  {!token && activeTab === 'submit' && (
           <div className="card submit-card">
             <h2>✍️ Submit Feedback</h2>
             {/* Key forces remount on auth transitions to clear internal form state */}
@@ -725,6 +721,7 @@ export default function App(){
               productsLoading={productsLoading}
               setFeedbackMsg={setFeedbackMsg}
               setFeedbackErr={setFeedbackErr}
+              setIsSubmitting={setIsSubmitting}
             />
             
             {/* Admin Login Link - Subtle placement at bottom */}
@@ -737,6 +734,7 @@ export default function App(){
                     setSessionExpiredMsg(null)
                   }}
                   aria-label="Open admin login"
+                  disabled={isSubmitting}
                 >
                   Admin? Sign in here →
                 </button>
@@ -831,6 +829,7 @@ export default function App(){
                   placeholder="admin"
                   autoFocus
                   required
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="form-group">
@@ -842,9 +841,10 @@ export default function App(){
                   onChange={e=>setPassword(e.target.value)} 
                   placeholder="Enter password"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
-              <button type="submit" className="btn-primary" disabled={loginLoading}>
+              <button type="submit" className="btn-primary" disabled={loginLoading || isSubmitting}>
                 {loginLoading ? 'Logging in...' : 'Login'}
               </button>
               {loginError && <div className="error-message" role="alert">{loginError}</div>}

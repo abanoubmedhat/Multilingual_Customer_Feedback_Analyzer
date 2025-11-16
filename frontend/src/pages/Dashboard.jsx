@@ -290,6 +290,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         },
         onCancel: () => {
           setConfirmDelete(null)
+          setIsProcessing(false)
           reject(new Error('Cancelled by user')) // Reject when cancelled
         }
       })
@@ -376,6 +377,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         },
         onCancel: () => {
           setConfirmDelete(null)
+          setIsProcessing(false)
           reject(new Error('Cancelled by user')) // Reject when cancelled
         }
       })
@@ -777,6 +779,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                           },
                           onCancel: () => { 
                             setConfirmDelete(null);
+                            setIsProcessing(false);
                           }
                         });
                       }}

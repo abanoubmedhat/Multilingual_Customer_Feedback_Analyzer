@@ -51,7 +51,7 @@ describe('Dashboard Component', () => {
     setupMockFetch({}, { total: 0, items: [] })
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
     
-    expect(screen.getByText(/Loading stats/i)).toBeInTheDocument()
+    expect(screen.getByText(/Loading dashboard data/i)).toBeInTheDocument()
   })
 
   it('displays sentiment statistics correctly', async () => {

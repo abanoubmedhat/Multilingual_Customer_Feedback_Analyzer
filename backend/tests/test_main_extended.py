@@ -468,3 +468,87 @@ async def test_change_password_incorrect_current(client: AsyncClient, admin_toke
     )
     assert response.status_code == 400
     assert "current password is incorrect" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_create_product_already_exists(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test creating a product that already exists returns 400."""
+    class DummyProduct:
+        name = "General"
+    async def dummy_execute(self, stmt):
+        class DummyRes:
+            def scalars(_):
+                class DummyScalar:
+                    def first(_): return DummyProduct()
+                return DummyScalar()
+        return DummyRes()
+    monkeypatch.setattr("main.AsyncSession.execute", dummy_execute)
+    response = await client.post(
+        "/api/products",
+        json={"name": "General"},
+        headers=admin_token_headers
+    )
+    assert response.status_code == 400
+    assert "product already exists" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_create_product_db_error(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test DB error during product creation returns 500."""
+    async def dummy_execute(self, stmt):
+        class DummyRes:
+            def scalars(_):
+                class DummyScalar:
+                    def first(_): return None
+                return DummyScalar()
+        return DummyRes()
+    async def fail_commit(self):
+        raise Exception("DB failure")
+    monkeypatch.setattr("main.AsyncSession.execute", dummy_execute)
+    monkeypatch.setattr("main.AsyncSession.commit", fail_commit)
+    response = await client.post(
+        "/api/products",
+        json={"name": "NewProduct"},
+        headers=admin_token_headers
+    )
+    assert response.status_code == 500
+    assert "failed to create product" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_delete_product_not_found(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test deleting a non-existent product returns 404."""
+    async def dummy_execute(self, stmt):
+        class DummyRes:
+            def scalars(_):
+                class DummyScalar:
+                    def first(_): return None
+                return DummyScalar()
+        return DummyRes()
+    monkeypatch.setattr("main.AsyncSession.execute", dummy_execute)
+    response = await client.delete(
+        "/api/products/999",
+        headers=admin_token_headers
+    )
+    assert response.status_code == 404
+    assert "product not found" in response.json()["detail"].lower()
+
+@pytest.mark.asyncio
+async def test_delete_product_db_error(client: AsyncClient, admin_token_headers, monkeypatch):
+    """Test DB error during product deletion returns 500."""
+    # Create a real product first
+    create_resp = await client.post(
+        "/api/products",
+        json={"name": "ErrProduct"},
+        headers=admin_token_headers
+    )
+    assert create_resp.status_code == 200
+    product_id = create_resp.json()["id"]
+    # Patch commit to raise exception
+    async def fail_commit(self):
+        raise Exception("DB failure")
+    monkeypatch.setattr("main.AsyncSession.commit", fail_commit)
+    # Attempt to delete
+    response = await client.delete(
+        f"/api/products/{product_id}",
+        headers=admin_token_headers
+    )
+    assert response.status_code == 500
+    assert "failed to delete product" in response.json()["detail"].lower()

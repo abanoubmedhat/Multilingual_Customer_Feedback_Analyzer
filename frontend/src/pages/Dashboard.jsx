@@ -367,15 +367,14 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             setSelectedIds([])
             // Clear filters since the filtered items no longer exist
             setSelectedProduct('')
+            setSelectedIds([])
+            // Clear filters since the filtered items no longer exist
+            setSelectedProduct('')
             setSelectedLanguage('')
-            // Reset to first page
+            setSelectedSentiment('')
             setPage(0)
-            
-            // Manually reload with cleared filters (state updates are async)
-            // Load filters first, then stats and feedback page with no filters
+            // Always reload feedbacks after filter reset
             await loadFilters()
-            
-            // Load stats with cleared filters
             try {
               const statsRes = await fetchWithAuth('/api/stats')
               if (statsRes.ok) {
@@ -385,8 +384,6 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             } catch(err) {
               console.error('Error loading stats:', err)
             }
-            
-            // Load feedback page with cleared filters
             try {
               const feedbackRes = await fetchWithAuth('/api/feedback?skip=0&limit=' + pageSize)
               if (feedbackRes.ok) {

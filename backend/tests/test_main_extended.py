@@ -242,3 +242,46 @@ async def test_create_tables_retry(monkeypatch):
 
     await main.create_tables(retries=2, base_delay=0.01)
     assert call_count["count"] == 2
+
+@pytest.mark.asyncio
+def test_lifespan_startup(monkeypatch):
+    # Patch Gemini config and DB session
+    monkeypatch.setattr("google.generativeai.configure", lambda api_key: None)
+    monkeypatch.setattr("builtins.print", lambda *a, **k: None)  # Suppress prints
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    monkeypatch.setenv("ADMIN_USERNAME", "testadmin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "testpass")
+    monkeypatch.setenv("ADMIN_FORCE_RESET", "true")
+
+    # Patch get_db to yield a dummy session
+    class DummySession:
+        async def execute(self, *args, **kwargs):
+            class DummyResult:
+                def scalars(self):
+                    class DummyScalar:
+                        def first(self): return None
+                        def scalar(self): return 0
+                    return DummyScalar()
+                def scalar(self): return 0
+            return DummyResult()
+        async def commit(self): pass
+        async def rollback(self): pass
+        async def close(self): pass
+        def add(self, obj): pass
+    async def dummy_get_db():
+        yield DummySession()
+    monkeypatch.setattr("main.get_db", dummy_get_db)
+    async def dummy_create_tables(*a, **kw):
+        return None
+    monkeypatch.setattr("main.create_tables", dummy_create_tables)
+
+    # Run the lifespan context manager
+    from main import lifespan
+    import types
+    app = None
+    cm = lifespan(app)
+    if hasattr(cm, "__aenter__"):
+        import asyncio
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(cm.__aenter__())
+        loop.run_until_complete(cm.__aexit__(None, None, None))

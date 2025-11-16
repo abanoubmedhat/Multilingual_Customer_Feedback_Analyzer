@@ -6,6 +6,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   // State declarations
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showSpinner, setShowSpinner] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState(null)
   const [products, setProducts] = useState([])
@@ -105,8 +106,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   }
 
   async function load(){
-    setLoading(true)
-    setError(null)
+  setLoading(true)
+  setError(null)
+  // Only show spinner if loading takes longer than 300ms
+  let spinnerTimeout = setTimeout(() => setShowSpinner(true), 300)
     try{
       let url = '/api/stats'
       const params = new URLSearchParams()
@@ -114,7 +117,6 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       if (selectedLanguage) params.append('language', selectedLanguage)
       if (selectedSentiment) params.append('sentiment', selectedSentiment)
       if (params.toString()) url += '?' + params.toString()
-      
       const res = await fetchWithAuth(url)
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
@@ -123,6 +125,8 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setError(err.message)
     }finally{
       setLoading(false)
+      clearTimeout(spinnerTimeout)
+      setShowSpinner(false)
     }
   }
 
@@ -398,7 +402,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         {stats && !loading && `Dashboard loaded. Total feedback: ${stats.total}`}
       </div>
 
-      {loading && <div className="loading">📊 Loading stats...</div>}
+  {showSpinner && <div className="loading">📊 Loading stats...</div>}
       
       {error && (
         <div className="error-message" role="alert">Error: {error}</div>

@@ -24,11 +24,16 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
   // Visibility toggles for optional fields
+  const [needsRefresh, setNeedsRefresh] = useState({ refresh: false, reset: false });
+
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showFieldsMenu, setShowFieldsMenu] = useState(false)
   // Anchor refs for preserving scroll position relative to the Show Fields button
   const fieldsBtnRef = useRef(null)
   const lastBtnTopRef = useRef(null)
+  // Ref to prevent useEffect from firing during a manual refresh, avoiding race conditions.
+  const isManualRefresh = useRef(false);
+
 
   // Reset selected feedbacks when page changes
   useEffect(() => {
@@ -131,8 +136,28 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   }
 
   useEffect(()=>{ loadFilters() }, [])
-  useEffect(()=>{ load() }, [selectedProduct, selectedLanguage, selectedSentiment])
-  useEffect(()=>{ loadFeedbackPage(0) }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize])
+  useEffect(()=>{
+    if (isManualRefresh.current) return;
+    load()
+  }, [selectedProduct, selectedLanguage, selectedSentiment])
+  
+  useEffect(()=>{
+    if (isManualRefresh.current) {
+      // Reset the flag after the effect has been skipped once.
+      // The setTimeout ensures it resets after the current render cycle.
+      setTimeout(() => { isManualRefresh.current = false; }, 0);
+      return;
+    }
+    loadFeedbackPage(0)
+  }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize])
+
+  // Declarative refresh effect
+  useEffect(() => {
+    if (needsRefresh.refresh) {
+      refreshAll(needsRefresh.reset);
+      setNeedsRefresh({ refresh: false, reset: false }); // Reset the trigger
+    }
+  }, [needsRefresh]);
 
   // Initialize page size from localStorage (if previously set)
   useEffect(() => {
@@ -181,6 +206,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
 
   // Unified refresh helper: refresh filters, stats, and the current page
   async function refreshAll(resetToFirstPage = true){
+    isManualRefresh.current = true;
     // Kick off in parallel for snappier UI; load() manages its own loading state
     const pageToLoad = resetToFirstPage ? 0 : page
     await Promise.allSettled([
@@ -188,6 +214,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       (async ()=>{ await load() })(),
       (async ()=>{ await loadFeedbackPage(pageToLoad) })(),
     ])
+    // After the manual refresh is complete, reset the flag.
+    // The timeout ensures this happens after any pending state updates from the refresh.
+    setTimeout(() => { isManualRefresh.current = false; }, 0);
   }
 
   // Listen for feedback creation events (from Submit form) to auto-refresh dashboard
@@ -254,42 +283,39 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         filter: `Product: ${selectedProduct || 'All'}, Language: ${selectedLanguage || 'All'}, Sentiment: ${selectedSentiment || 'All'}`,
         onConfirm: async () => {
           try {
-            if (selectedIds.length === 1){
-              const id = selectedIds[0]
-              const res = await fetchWithAuth(`/api/feedback/${id}`, { method: 'DELETE' })
-              if (!res.ok) throw new Error('Failed to delete feedback')
-              setBulkMsg('✅ Deleted 1 feedback entry.')
-            } else {
-              const res = await fetchWithAuth('/api/feedback', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedIds })
-              })
-              if (!res.ok) {
-                let detail = 'Bulk delete failed'
-                try {
-                  const errorData = await res.json()
-                  if (typeof errorData.detail === 'string') {
-                    detail = errorData.detail
-                  } else if (typeof errorData.detail === 'object') {
-                    detail = JSON.stringify(errorData.detail)
-                  }
-                } catch {}
-                throw new Error(detail)
-              }
-              const data = await res.json()
-              const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
-              setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
+            const res = await fetchWithAuth('/api/feedback', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ids: selectedIds })
+            });
+
+            if (!res.ok) {
+              let detail = 'Bulk delete failed';
+              try {
+                const errorData = await res.json();
+                if (typeof errorData.detail === 'string') {
+                  detail = errorData.detail;
+                } else if (typeof errorData.detail === 'object') {
+                  detail = JSON.stringify(errorData.detail);
+                }
+              } catch {}
+              throw new Error(detail);
             }
+
+            const data = await res.json();
+            const deletedCount = typeof data.deleted === 'number' ? data.deleted : selectedIds.length;
+            setBulkMsg(`✅ Deleted ${deletedCount} feedback entr${deletedCount === 1 ? 'y' : 'ies'}.`);
+
             setSelectedIds([])
             // If the last item(s) on the page were deleted, reset filters and go to the first page.
+            // We must set state and then await the refresh to avoid race conditions with useEffect.
             if (feedbackPage.length === selectedIds.length) {
-              setSelectedProduct('');
-              setSelectedLanguage('');
-              setSelectedSentiment('');
-              await refreshAll(true);
+              // Use a functional update to ensure we have the latest state before refreshing.
+              setSelectedProduct(() => '');
+              setSelectedLanguage(() => '');
+              setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
             } else {
-              await refreshAll(false)
+              setNeedsRefresh({ refresh: true, reset: false });
             }
             resolve() // Resolve the promise on success
           } catch(e){
@@ -345,11 +371,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             const deletedCount = typeof data.deleted === 'number' ? data.deleted : 0
             setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             setSelectedIds([])
-            // Clear filters since the filtered items no longer exist
-            setSelectedProduct('')
-            setSelectedLanguage('')
-            setSelectedSentiment('')
-            await refreshAll(true);
+            // Clear filters since the filtered items no longer exist.
+            setSelectedProduct(() => '');
+            setSelectedLanguage(() => '');
+            setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
             
             resolve() // Resolve the promise on success
           } catch(e){
@@ -752,24 +777,27 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                           filter: `Feedback ID: ${f.id}`,
                           onConfirm: async () => {
                             try {
+                              setIsProcessing(true);
                               const res = await fetchWithAuth(`/api/feedback/${f.id}`, { method: 'DELETE' });
                               if (!res.ok) throw new Error('Failed to delete feedback');
+                              
                               setBulkMsg('✅ Deleted 1 feedback entry.');
-                              await refreshAll(false);
-                              // If no feedbacks remain after deletion, reset filters and reload first page
-                              setTimeout(() => {
-                                if (feedbackPage.length <= 1) { // was 1, now 0
-                                  setSelectedProduct('');
-                                  setSelectedLanguage('');
-                                  setSelectedSentiment('');
-                                  setPage(0);
-                                  refreshAll(true);
-                                }
-                              }, 0);
-                              setConfirmDelete(null);
+                              setSelectedIds([]); // Clear selection state after any delete
+                              
+                              // If the last item on the page was deleted, reset filters and go to the first page.
+                              if (feedbackPage.length === 1) {
+                                setSelectedProduct(() => '');
+                                setSelectedLanguage(() => '');
+                                setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
+                              } else {
+                                setNeedsRefresh({ refresh: true, reset: false });
+                              }
                             } catch(e) {
                               setBulkError(`⚠️ ${e.message}`);
+                            } finally {
+                              // Always close the modal and reset processing state
                               setConfirmDelete(null);
+                              setIsProcessing(false);
                             }
                           },
                           onCancel: () => { 

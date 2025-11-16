@@ -282,32 +282,12 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             }
             setSelectedIds([])
-            // If all feedbacks are deleted, reset filters and reload everything
+            // If the last item(s) on the page were deleted, reset filters and go to the first page.
             if (feedbackPage.length === selectedIds.length) {
               setSelectedProduct('');
               setSelectedLanguage('');
               setSelectedSentiment('');
-              setPage(0);
-              await loadFilters();
-              try {
-                const statsRes = await fetchWithAuth('/api/stats')
-                if (statsRes.ok) {
-                  const statsData = await statsRes.json()
-                  setStats(statsData)
-                }
-              } catch(err) {
-                console.error('Error loading stats:', err)
-              }
-              try {
-                const feedbackRes = await fetchWithAuth('/api/feedback?skip=0&limit=' + pageSize)
-                if (feedbackRes.ok) {
-                  const feedbackData = await feedbackRes.json()
-                  setFeedbackPage(Array.isArray(feedbackData.items) ? feedbackData.items : [])
-                  setTotalFeedback(feedbackData.total || 0)
-                }
-              } catch(err) {
-                console.error('Error loading feedback:', err)
-              }
+              await refreshAll(true);
             } else {
               await refreshAll(false)
             }
@@ -367,33 +347,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             setSelectedIds([])
             // Clear filters since the filtered items no longer exist
             setSelectedProduct('')
-            setSelectedIds([])
-            // Clear filters since the filtered items no longer exist
-            setSelectedProduct('')
             setSelectedLanguage('')
             setSelectedSentiment('')
-            setPage(0)
-            // Always reload feedbacks after filter reset
-            await loadFilters()
-            try {
-              const statsRes = await fetchWithAuth('/api/stats')
-              if (statsRes.ok) {
-                const statsData = await statsRes.json()
-                setStats(statsData)
-              }
-            } catch(err) {
-              console.error('Error loading stats:', err)
-            }
-            try {
-              const feedbackRes = await fetchWithAuth('/api/feedback?skip=0&limit=' + pageSize)
-              if (feedbackRes.ok) {
-                const feedbackData = await feedbackRes.json()
-                setFeedbackPage(Array.isArray(feedbackData.items) ? feedbackData.items : [])
-                setTotalFeedback(feedbackData.total || 0)
-              }
-            } catch(err) {
-              console.error('Error loading feedback:', err)
-            }
+            await refreshAll(true);
             
             resolve() // Resolve the promise on success
           } catch(e){

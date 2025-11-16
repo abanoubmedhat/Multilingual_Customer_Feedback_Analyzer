@@ -214,3 +214,31 @@ async def test_gemini_api_error_handling(client: AsyncClient):
         assert response.status_code == 500
         assert "AI analysis failed" in response.json()["detail"]
         assert "Gemini is down" in response.json()["detail"]
+
+@pytest.mark.asyncio
+async def test_create_tables_retry(monkeypatch):
+    call_count = {"count": 0}
+
+    class DummyConn:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+        async def run_sync(self, func):
+            call_count["count"] += 1
+            if call_count["count"] == 1:
+                raise Exception("DB not ready")
+            return None
+
+    def dummy_begin(self):
+        return DummyConn()
+
+    async def dummy_sleep(_):
+        return None
+
+    from sqlalchemy.ext.asyncio import AsyncEngine
+    monkeypatch.setattr(AsyncEngine, "begin", dummy_begin)
+    monkeypatch.setattr("asyncio.sleep", dummy_sleep)
+
+    await main.create_tables(retries=2, base_delay=0.01)
+    assert call_count["count"] == 2

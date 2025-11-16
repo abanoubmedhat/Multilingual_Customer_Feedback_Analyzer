@@ -1,5 +1,5 @@
 # Frontend Dockerfile (development - runs Vite dev server)
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install

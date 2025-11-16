@@ -66,7 +66,11 @@ export default function Submit({ products = [], productsLoading = false, setFeed
       error: null
     }))
 
-    if (!text.trim()) { setError('Please enter feedback text'); return }
+    if (!text.trim()) {
+      setError('Please enter feedback text');
+      setTimeout(() => setError(null), 4000);
+      return;
+    }
     if (!product) { setError('Please select a product'); return }
 
   setLoading(true)
@@ -184,6 +188,11 @@ export default function Submit({ products = [], productsLoading = false, setFeed
         completedSteps: [],
         error: errorMsg
       }))
+      // Auto-dismiss for timeout and fetch errors
+      // Auto-dismiss all error notifications after 4 seconds
+      if (errorMsg) {
+        setTimeout(() => setError(null), 4000)
+      }
     }finally{
       setLoading(false)
       if (setIsSubmitting) setIsSubmitting(false)

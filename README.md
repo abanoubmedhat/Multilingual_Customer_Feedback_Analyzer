@@ -390,21 +390,24 @@ Multilingual Customer Feedback Analyzer v1.0 is now deplyed to free hosting plat
 
 ## 📡 API Routes & Usage
 
-POST /api/feedback — Analyze and store feedback.
-POST /api/translate — Analyze (translate + sentiment) without storing.
-GET /api/feedback — List feedback with filters (product, language, sentiment).
-GET /api/stats — Sentiment overview and percentages.
-GET /api/products — List available products.
-POST /api/products — Create a new product (admin only).
-DELETE /api/products/{product_id} — Delete a product (admin only).
-DELETE /api/feedback/all — Delete all feedback matching filters (admin only).
-DELETE /api/feedback/{feedback_id} — Delete a single feedback entry (admin only).
-DELETE /api/feedback — Bulk delete feedback by IDs (admin only).
-GET /api/gemini/models — List available Gemini models (admin only).
-GET /api/gemini/current-model — Get current Gemini model (admin only).
-POST /api/gemini/current-model — Update Gemini model (admin only).
-POST /auth/token — Obtain JWT access token (admin only).
-POST /auth/change-password — Change admin password.
+| Method | Endpoint                         | Description                                       | Admin Only |
+|--------|----------------------------------|---------------------------------------------------|:----------:|
+| POST   | `/api/feedback`                  | Analyze and store new feedback.                   |     No     |
+| POST   | `/api/translate`                 | Analyze text without storing (for UI preview).    |     No     |
+| GET    | `/api/feedback`                  | List feedback with filters and pagination.        |    Yes     |
+| DELETE | `/api/feedback`                  | Bulk delete feedback by a list of IDs.            |    Yes     |
+| DELETE | `/api/feedback/{feedback_id}`    | Delete a single feedback entry.                   |    Yes     |
+| DELETE | `/api/feedback/all`              | Delete all feedback matching the given filters.   |    Yes     |
+| GET    | `/api/stats`                     | Get sentiment overview and percentages.           |    Yes     |
+| GET    | `/api/products`                  | List all available products.                      |    Yes     |
+| POST   | `/api/products`                  | Create a new product.                             |    Yes     |
+| DELETE | `/api/products/{product_id}`     | Delete a product.                                 |    Yes     |
+| GET    | `/api/gemini/models`             | List available Gemini models for the API key.     |    Yes     |
+| GET    | `/api/gemini/current-model`      | Get the currently configured Gemini model.        |    Yes     |
+| POST   | `/api/gemini/current-model`      | Update the Gemini model to be used for analysis.  |    Yes     |
+| POST   | `/auth/token`                    | Obtain a JWT access token for an admin.           |    Yes     |
+| POST   | `/auth/change-password`          | Change the admin password.                        |    Yes     |
+
 ---
 
 ## 🗄️ Data Schema

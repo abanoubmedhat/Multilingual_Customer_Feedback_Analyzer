@@ -775,6 +775,16 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                               if (!res.ok) throw new Error('Failed to delete feedback');
                               setBulkMsg('✅ Deleted 1 feedback entry.');
                               await refreshAll(false);
+                              // If no feedbacks remain after deletion, reset filters and reload first page
+                              setTimeout(() => {
+                                if (feedbackPage.length <= 1) { // was 1, now 0
+                                  setSelectedProduct('');
+                                  setSelectedLanguage('');
+                                  setSelectedSentiment('');
+                                  setPage(0);
+                                  refreshAll(true);
+                                }
+                              }, 0);
                               setConfirmDelete(null);
                             } catch(e) {
                               setBulkError(`⚠️ ${e.message}`);

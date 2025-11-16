@@ -285,3 +285,91 @@ def test_lifespan_startup(monkeypatch):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(cm.__aenter__())
         loop.run_until_complete(cm.__aexit__(None, None, None))
+
+def test_refresh_token_middleware_sets_new_token(monkeypatch):
+    import jwt
+    from main import app, SECRET_KEY, ALGORITHM
+    from starlette.testclient import TestClient
+    from datetime import datetime, timedelta
+
+    # Create a token that is close to expiring
+    payload = {
+        "sub": "testuser",
+        "role": "user",
+        "exp": int((datetime.utcnow() + timedelta(seconds=10)).timestamp())
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+    # Patch should_refresh_token to always return True
+    monkeypatch.setattr("main.should_refresh_token", lambda exp: True)
+    # Patch create_access_token to return a predictable token
+    monkeypatch.setattr("main.create_access_token", lambda data: "newtoken123")
+
+    with TestClient(app) as client:
+        response = client.get("/", headers={"Authorization": f"Bearer {token}"})
+        # Should set the X-New-Token header
+        assert response.headers["X-New-Token"] == "newtoken123"
+
+@pytest.mark.asyncio
+async def test_get_all_feedback_language_and_sentiment(client: AsyncClient, admin_token_headers, sample_feedback):
+    # Add feedback with different languages and sentiments
+    await sample_feedback(sentiment="positive", language="en")
+    await sample_feedback(sentiment="negative", language="fr")
+    await sample_feedback(sentiment="neutral", language="en")
+    await sample_feedback(sentiment="positive", language="fr")
+
+    # Filter by language
+    response = await client.get("/api/feedback?language=en", headers=admin_token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    for item in data["items"]:
+        assert item["language"] == "en"
+
+    # Filter by sentiment
+    response = await client.get("/api/feedback?sentiment=positive", headers=admin_token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    for item in data["items"]:
+        assert item["sentiment"] == "positive"
+
+    # Filter by both
+    response = await client.get("/api/feedback?language=fr&sentiment=positive", headers=admin_token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 1
+    assert data["items"][0]["language"] == "fr"
+    assert data["items"][0]["sentiment"] == "positive"
+
+
+# --- Current Gemini Model Tests ---
+
+@pytest.mark.asyncio
+async def test_get_current_gemini_model_found(db_session):
+    from main import _get_current_gemini_model
+    from models import Settings
+    # Insert a setting
+    setting = Settings(key="gemini_model", value="models/test-model")
+    db_session.add(setting)
+    await db_session.commit()
+    # Should return the value
+    result = await _get_current_gemini_model(db_session)
+    assert result == "models/test-model"
+
+@pytest.mark.asyncio
+async def test_get_current_gemini_model_not_found(db_session):
+    from main import _get_current_gemini_model
+    # No setting in DB
+    result = await _get_current_gemini_model(db_session)
+    assert result == "models/gemini-2.5-flash"
+
+@pytest.mark.asyncio
+async def test_get_current_gemini_model_db_error(monkeypatch, db_session):
+    from main import _get_current_gemini_model
+    # Simulate DB error
+    async def broken_execute(*a, **kw):
+        raise Exception("DB error")
+    monkeypatch.setattr(db_session, "execute", broken_execute)
+    result = await _get_current_gemini_model(db_session)
+    assert result == "models/gemini-2.5-flash"

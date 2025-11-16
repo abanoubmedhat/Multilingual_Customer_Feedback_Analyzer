@@ -282,7 +282,35 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             }
             setSelectedIds([])
-            await refreshAll(false)
+            // If all feedbacks are deleted, reset filters and reload everything
+            if (feedbackPage.length === selectedIds.length) {
+              setSelectedProduct('');
+              setSelectedLanguage('');
+              setSelectedSentiment('');
+              setPage(0);
+              await loadFilters();
+              try {
+                const statsRes = await fetchWithAuth('/api/stats')
+                if (statsRes.ok) {
+                  const statsData = await statsRes.json()
+                  setStats(statsData)
+                }
+              } catch(err) {
+                console.error('Error loading stats:', err)
+              }
+              try {
+                const feedbackRes = await fetchWithAuth('/api/feedback?skip=0&limit=' + pageSize)
+                if (feedbackRes.ok) {
+                  const feedbackData = await feedbackRes.json()
+                  setFeedbackPage(Array.isArray(feedbackData.items) ? feedbackData.items : [])
+                  setTotalFeedback(feedbackData.total || 0)
+                }
+              } catch(err) {
+                console.error('Error loading feedback:', err)
+              }
+            } else {
+              await refreshAll(false)
+            }
             resolve() // Resolve the promise on success
           } catch(e){
             setBulkError(`⚠️ ${e.message}`)

@@ -27,7 +27,7 @@ jobs:
       
       - name: Validate Docker Compose
         run: |
-          docker-compose config > /dev/null
+          docker compose config > /dev/null
           echo "✅ Docker Compose configuration is valid"
       
       - name: Check required files

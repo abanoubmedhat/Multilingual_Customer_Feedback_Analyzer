@@ -3,7 +3,7 @@ Additional tests for main.py to improve coverage.
 """
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock, PropertyMock, AsyncMock
 from datetime import datetime, timedelta, timezone
 
 import main
@@ -205,7 +205,7 @@ async def test_gemini_api_error_handling(client: AsyncClient):
     """Test that errors from the Gemini API are handled gracefully in translate endpoint."""
     # Mock the model generation itself to test the error handling in _call_gemini_analysis
     with patch('google.generativeai.GenerativeModel') as mock_gen_model:
-        mock_gen_model.return_value.generate_content.side_effect = Exception("Gemini is down")
+        mock_gen_model.return_value.generate_content_async = AsyncMock(side_effect=Exception("Gemini is down"))
 
         response = await client.post(
             "/api/translate",
@@ -223,7 +223,7 @@ async def test_gemini_api_quota_error(client: AsyncClient):
         class DummyResponse:
             parts = [1]
             text = None
-        mock_gen_model.return_value.generate_content.side_effect = Exception("ResourceExhausted: Quota exceeded")
+        mock_gen_model.return_value.generate_content_async = AsyncMock(side_effect=Exception("ResourceExhausted: Quota exceeded"))
         response = await client.post(
             "/api/translate",
             json={"text": "Test quota error"}
@@ -236,7 +236,7 @@ async def test_gemini_api_invalid_model_error(client: AsyncClient):
     """Test Gemini API invalid model error handling in translate endpoint."""
     with patch('google.generativeai.GenerativeModel') as mock_gen_model:
         # Simulate invalid model error
-        mock_gen_model.return_value.generate_content.side_effect = Exception("Model not found or invalid")
+        mock_gen_model.return_value.generate_content_async = AsyncMock(side_effect=Exception("Model not found or invalid"))
         response = await client.post(
             "/api/translate",
             json={"text": "Test invalid model error"}
@@ -249,7 +249,7 @@ async def test_gemini_api_generic_error(client: AsyncClient):
     """Test Gemini API generic error handling in translate endpoint."""
     with patch('google.generativeai.GenerativeModel') as mock_gen_model:
         # Simulate generic error
-        mock_gen_model.return_value.generate_content.side_effect = Exception("Some generic error occurred")
+        mock_gen_model.return_value.generate_content_async = AsyncMock(side_effect=Exception("Some generic error occurred"))
         response = await client.post(
             "/api/translate",
             json={"text": "Test generic error"}

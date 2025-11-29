@@ -352,7 +352,7 @@ async def _get_current_gemini_model(db: AsyncSession) -> str:
     return "models/gemini-2.5-flash"
 
 
-def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash") -> dict:
+async def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash") -> dict:
     """Call Gemini model synchronously and return a dict with keys:
     translated_text, sentiment, language (ISO code)
     This wraps the previous parsing logic into one place.
@@ -371,7 +371,7 @@ def _call_gemini_analysis(text: str, model_name: str = "models/gemini-2.5-flash"
         Text: "{text}"
         '''
 
-        response = model.generate_content(prompt)
+        response = await model.generate_content_async(prompt)
         if not response.parts or not response.text:
             raise HTTPException(status_code=400, detail="AI content generation failed. Empty response from Gemini API.")
 
@@ -539,7 +539,7 @@ async def translate_only(
 ):
     """Translate and classify sentiment without storing."""
     model_name = await _get_current_gemini_model(db)
-    analysis = _call_gemini_analysis(feedback_input.text, model_name)
+    analysis = await _call_gemini_analysis(feedback_input.text, model_name)
     return schemas.TranslateOutput(**analysis)
 
 
@@ -587,7 +587,7 @@ async def create_feedback(
                 raise HTTPException(status_code=499, detail="Client disconnected")
 
             model_name = await _get_current_gemini_model(db)
-            analysis = _call_gemini_analysis(feedback_input.text, model_name)
+            analysis = await _call_gemini_analysis(feedback_input.text, model_name)
 
         # Check if client disconnected before saving
         if await request.is_disconnected():

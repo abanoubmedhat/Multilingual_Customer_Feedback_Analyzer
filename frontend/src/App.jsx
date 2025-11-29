@@ -8,7 +8,7 @@ import { fetchWithAuth } from './utils/fetchWithAuth'
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // GeminiModelSelector Component (extracted to prevent re-creation on App re-renders)
-function GeminiModelSelector({ setMsg, setErr }){
+function GeminiModelSelector({ setMsg, setErr }) {
   const [models, setModels] = useState([])
   const [currentModel, setCurrentModel] = useState('')
   const [loading, setLoading] = useState(true)
@@ -27,7 +27,7 @@ function GeminiModelSelector({ setMsg, setErr }){
             setLoading(false)
             return true
           }
-        } catch {}
+        } catch { }
       }
       setPendingAnalysis(false)
       return false
@@ -37,15 +37,6 @@ function GeminiModelSelector({ setMsg, setErr }){
       loadModels()
       loadCurrentModel()
     }
-    // Listen for feedback analysis completion event
-    function handleFeedbackCreated() {
-      // Feedback analysis finished, refresh models
-      setPendingAnalysis(false)
-      setLoading(true)
-      loadModels()
-      loadCurrentModel()
-    }
-    window.addEventListener('feedback:created', handleFeedbackCreated)
     // Listen for storage changes to detect when analysis completes (fallback for other tabs)
     function handleStorage() {
       if (!checkPending()) {
@@ -56,15 +47,14 @@ function GeminiModelSelector({ setMsg, setErr }){
     }
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('feedback:created', handleFeedbackCreated)
       window.removeEventListener('storage', handleStorage)
     }
   }, [])
 
-  async function loadModels(){
-    try{
+  async function loadModels() {
+    try {
       const res = await fetchWithAuth('/api/gemini/models')
-      if (res.ok){
+      if (res.ok) {
         const data = await res.json()
         setModels(data)
         setLoadError(null)
@@ -72,68 +62,68 @@ function GeminiModelSelector({ setMsg, setErr }){
         const error = await res.json().catch(() => ({ detail: 'Failed to load models' }))
         setLoadError(error.detail || 'Failed to load models from Google API')
       }
-    }catch(error){
+    } catch (error) {
       console.error('Error loading models:', error)
       setLoadError('Network error: Could not connect to server')
-    }finally{
+    } finally {
       setLoading(false)
     }
   }
 
-  async function loadCurrentModel(){
-    try{
+  async function loadCurrentModel() {
+    try {
       const res = await fetchWithAuth('/api/gemini/current-model')
-      if (res.ok){
+      if (res.ok) {
         const data = await res.json()
         setCurrentModel(data.current_model)
       } else {
         console.error('Error loading current model')
       }
-    }catch(error){
+    } catch (error) {
       console.error('Error loading current model:', error)
     }
   }
 
-  async function handleModelChange(e){
+  async function handleModelChange(e) {
     const newModel = e.target.value
     setMsg(null); setErr(null)
-    
-    try{
+
+    try {
       const res = await fetchWithAuth('/api/gemini/current-model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model_name: newModel })
       })
-      
-      if (!res.ok){
+
+      if (!res.ok) {
         throw new Error('Failed to update model')
       }
-      
+
       setCurrentModel(newModel)
       setMsg('✅ Model updated successfully')
-    }catch(error){
+    } catch (error) {
       setErr(`⚠️ ${error.message}`)
     }
   }
 
   if (pendingAnalysis) {
     return (
-      <div className="pending-message" style={{padding: '16px', background: '#FEF3C7', borderRadius: '8px', color: '#92400E'}}>
+      <div className="pending-message" style={{ padding: '16px', background: '#FEF3C7', borderRadius: '8px', color: '#92400E' }}>
         <strong>⏳ Model list is pending</strong>
         <p>The API is busy analyzing feedback. Model selection will be available once analysis completes.</p>
       </div>
     )
   }
-  if (loading){
+  if (loading) {
     return <div>Loading available models from Google API...</div>
   }
-  if (loadError && models.length === 0){
+  if (loadError && models.length === 0) {
     return (
       <div>
         <div className="error-message" role="alert">
           <strong>⚠️ Error Loading Models</strong>
           <p>{loadError}</p>
-          <button onClick={() => { setLoading(true); setLoadError(null); loadModels(); }} style={{marginTop: 8}}>
+          <button onClick={() => { setLoading(true); setLoadError(null); loadModels(); }} style={{ marginTop: 8 }}>
             Retry
           </button>
         </div>
@@ -145,11 +135,11 @@ function GeminiModelSelector({ setMsg, setErr }){
     <div>
       <div className="form-group">
         <label htmlFor="gemini-model">Select AI Model</label>
-        <select 
-          id="gemini-model" 
-          value={currentModel} 
+        <select
+          id="gemini-model"
+          value={currentModel}
           onChange={handleModelChange}
-          style={{width: '100%'}}
+          style={{ width: '100%' }}
           disabled={models.length === 0}
         >
           {models.length === 0 && <option value="">No models available</option>}
@@ -168,24 +158,24 @@ function GeminiModelSelector({ setMsg, setErr }){
 }
 
 // ProductsManager Component (extracted to prevent re-creation on App re-renders)
-function ProductsManager({ products, productsLoading, productsError, setProductMsg, setProductErr, loadProducts }){
+function ProductsManager({ products, productsLoading, productsError, setProductMsg, setProductErr, loadProducts }) {
   const [pendingDeleteId, setPendingDeleteId] = React.useState(null)
 
-  async function remove(id){
-    try{
+  async function remove(id) {
+    try {
       setProductMsg(null); setProductErr(null)
       const res = await fetchWithAuth(`/api/products/${id}`, {
         method: 'DELETE'
       })
-      if (!res.ok){
+      if (!res.ok) {
         let detail = 'Delete failed'
-        try { const j = await res.json(); detail = j.detail || detail } catch {}
+        try { const j = await res.json(); detail = j.detail || detail } catch { }
         throw new Error(detail)
       }
       await loadProducts()
       setProductMsg('✅ Product deleted successfully')
       setPendingDeleteId(null)
-    }catch(err){
+    } catch (err) {
       setProductErr(`⚠️ ${err.message}`)
     }
   }
@@ -194,27 +184,27 @@ function ProductsManager({ products, productsLoading, productsError, setProductM
     <div>
       {productsLoading && <div className="loading">Loading products...</div>}
       {productsError && <div className="error-message">{productsError}</div>}
-      <div style={{maxHeight: '300px', overflowY: 'scroll', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px'}}>
-        <ul style={{margin: 0, padding: 0, listStyle: 'none'}}>
+      <div style={{ maxHeight: '300px', overflowY: 'scroll', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '12px' }}>
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
           {[...products].reverse().map(p => (
             <li key={p.id} style={{
-              display:'flex', 
-              justifyContent:'space-between', 
-              alignItems:'center', 
-              padding:'12px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
               marginBottom: '8px',
               background: '#f9fafb',
               borderRadius: '6px',
               border: '1px solid #e5e7eb'
             }}>
-              <span style={{fontSize: '15px', fontWeight: '500'}}>{p.name}</span>
+              <span style={{ fontSize: '15px', fontWeight: '500' }}>{p.name}</span>
               {pendingDeleteId === p.id ? (
-                <div style={{display:'flex', gap:8, alignItems:'center'}}>
-                  <button onClick={()=>setPendingDeleteId(null)} style={{width:'auto', padding:'8px 16px', fontSize: '14px'}}>Cancel</button>
-                  <button onClick={()=>remove(p.id)} style={{width:'auto', padding:'8px 16px', background:'#dc2626', fontSize: '14px'}}>Confirm</button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={() => setPendingDeleteId(null)} style={{ width: 'auto', padding: '8px 16px', fontSize: '14px' }}>Cancel</button>
+                  <button onClick={() => remove(p.id)} style={{ width: 'auto', padding: '8px 16px', background: '#dc2626', fontSize: '14px' }}>Confirm</button>
                 </div>
               ) : (
-                <button onClick={()=>setPendingDeleteId(p.id)} style={{width:'auto', padding:'8px 16px', background:'#dc2626', fontSize: '14px'}}>Delete</button>
+                <button onClick={() => setPendingDeleteId(p.id)} style={{ width: 'auto', padding: '8px 16px', background: '#dc2626', fontSize: '14px' }}>Delete</button>
               )}
             </li>
           ))}
@@ -225,21 +215,21 @@ function ProductsManager({ products, productsLoading, productsError, setProductM
 }
 
 // ChangePassword Component (extracted to prevent re-creation on App re-renders)
-function ChangePassword({ setMsg, setErr }){
+function ChangePassword({ setMsg, setErr }) {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
-  async function submit(e){
+  async function submit(e) {
     e.preventDefault()
     setMsg(null); setErr(null)
     // Client-side validation aligned with backend (min length 6)
-    if (newPassword.length < 6){
+    if (newPassword.length < 6) {
       setErr('⚠️ New password must be at least 6 characters long')
       return
     }
     setLoading(true)
-    try{
+    try {
       const res = await fetchWithAuth('/auth/change-password', {
         method: 'POST',
         headers: {
@@ -247,18 +237,18 @@ function ChangePassword({ setMsg, setErr }){
         },
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
       })
-      if (!res.ok){
+      if (!res.ok) {
         let detail = 'Failed to change password'
         try {
           const j = await res.json();
           if (typeof j.detail === 'string') detail = j.detail
           else if (Array.isArray(j.detail)) detail = j.detail[0]?.msg || detail
-        } catch {}
+        } catch { }
         throw new Error(detail)
       }
       setMsg('✅ Password changed successfully')
       setCurrentPassword(''); setNewPassword('')
-    }catch(error){
+    } catch (error) {
       setErr(`⚠️ ${error.message}`)
     } finally {
       setLoading(false)
@@ -269,11 +259,11 @@ function ChangePassword({ setMsg, setErr }){
     <form onSubmit={submit}>
       <div className="form-group">
         <label htmlFor="cur">Current password</label>
-        <input id="cur" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required disabled={loading} />
+        <input id="cur" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required disabled={loading} />
       </div>
       <div className="form-group">
         <label htmlFor="new">New password</label>
-        <input id="new" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} required disabled={loading} />
+        <input id="new" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required disabled={loading} />
         <div className="hint">Minimum 6 characters</div>
       </div>
       <button type="submit" disabled={loading}>
@@ -283,7 +273,7 @@ function ChangePassword({ setMsg, setErr }){
   )
 }
 
-export default function App(){
+export default function App() {
   const [token, setToken] = useState(null)
   const [loginError, setLoginError] = useState(null)
   const [loginLoading, setLoginLoading] = useState(false)
@@ -509,18 +499,18 @@ export default function App(){
   }, [feedbackMsg])
 
   // Load products (used by Submit and Products manager)
-  async function loadProducts(){
+  async function loadProducts() {
     setProductsLoading(true)
     setProductsError(null)
-    try{
+    try {
       const res = await fetchWithAuth('/api/products')
       if (!res.ok) throw new Error('Failed to load products')
       const data = await res.json()
       setProducts(Array.isArray(data) ? data : [])
-    }catch(e){
+    } catch (e) {
       setProductsError(e.message)
       setProducts([])
-    }finally{
+    } finally {
       setProductsLoading(false)
     }
   }
@@ -539,11 +529,11 @@ export default function App(){
     return () => document.removeEventListener('keydown', handleEscape)
   }, [showLoginModal])
 
-  async function handleLogin(e){
+  async function handleLogin(e) {
     e.preventDefault()
     setLoginError(null)
     setLoginLoading(true)
-    try{
+    try {
       const params = new URLSearchParams()
       params.append('grant_type', 'password')
       params.append('username', username)
@@ -563,25 +553,25 @@ export default function App(){
       setUsername('')
       setPassword('')
       setShowLoginModal(false) // Close modal on success
-    }catch(err){
+    } catch (err) {
       setLoginError(err.message)
     } finally {
       setLoginLoading(false)
     }
   }
 
-  function handleLogout(){
+  function handleLogout() {
     localStorage.removeItem('jwt')
     setToken(null)
     setActiveTab('submit') // Return to submit tab after logout
   }
 
-  async function handleAddProduct(e){
+  async function handleAddProduct(e) {
     e.preventDefault()
     const form = e.target
     const name = new FormData(form).get('name')
     if (!name) return
-    try{
+    try {
       setProductMsg(null); setProductErr(null)
       const res = await fetchWithAuth('/api/products', {
         method: 'POST',
@@ -590,20 +580,20 @@ export default function App(){
         },
         body: JSON.stringify({ name })
       })
-      if (!res.ok){
+      if (!res.ok) {
         // try to parse backend error
         let detail = 'Failed to add product'
         try {
           const j = await res.json();
           if (typeof j.detail === 'string') detail = j.detail
           else if (Array.isArray(j.detail)) detail = j.detail[0]?.msg || detail
-        } catch {}
+        } catch { }
         throw new Error(detail)
       }
       form.reset()
       await loadProducts() // refresh list everywhere
       setProductMsg('✅ Product added successfully')
-    }catch(err){
+    } catch (err) {
       setProductErr(`⚠️ ${err.message}`)
     }
   }
@@ -620,22 +610,22 @@ export default function App(){
         <div className="header header-fixed">
           <h1>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
-              width: '48px', 
-              height: '48px', 
-              verticalAlign: 'middle', 
+              width: '48px',
+              height: '48px',
+              verticalAlign: 'middle',
               marginRight: '16px',
               marginBottom: '12px',
               display: 'inline-block'
             }}>
               <g transform="translate(30, 30)">
                 {/* Bar 1 (shortest - blue) */}
-                <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA"/>
-                
+                <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA" />
+
                 {/* Bar 2 (medium - green) */}
-                <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399"/>
-                
+                <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399" />
+
                 {/* Bar 3 (tallest - yellow) */}
-                <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24"/>
+                <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24" />
               </g>
             </svg>
             Multilingual Feedback Analyzer
@@ -646,7 +636,7 @@ export default function App(){
       {/* Navigation Tabs - Fixed below header */}
       {token && (
         <nav className="main-nav" role="navigation" aria-label="Main navigation">
-          <button 
+          <button
             className={activeTab === 'dashboard' ? 'nav-btn active' : 'nav-btn'}
             onClick={() => setActiveTab('dashboard')}
             aria-current={activeTab === 'dashboard' ? 'page' : undefined}
@@ -654,15 +644,15 @@ export default function App(){
             📊 Dashboard
           </button>
           {/* Removed Submit Feedback tab for admin view */}
-          <button 
+          <button
             className={activeTab === 'settings' ? 'nav-btn active' : 'nav-btn'}
             onClick={() => setActiveTab('settings')}
             aria-current={activeTab === 'settings' ? 'page' : undefined}
           >
             ⚙️ Settings
           </button>
-          <button 
-            onClick={handleLogout} 
+          <button
+            onClick={handleLogout}
             className="nav-btn logout-btn"
             aria-label="Logout from admin panel"
           >
@@ -678,22 +668,22 @@ export default function App(){
           <div className="header header-inline">
             <h1>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" style={{
-                width: '48px', 
-                height: '48px', 
-                verticalAlign: 'middle', 
+                width: '48px',
+                height: '48px',
+                verticalAlign: 'middle',
                 marginRight: '16px',
                 marginBottom: '12px',
                 display: 'inline-block'
               }}>
                 <g transform="translate(30, 30)">
                   {/* Bar 1 (shortest - blue) */}
-                  <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA"/>
-                  
+                  <rect x="-22" y="6" width="14" height="18" rx="3" fill="#60A5FA" />
+
                   {/* Bar 2 (medium - green) */}
-                  <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399"/>
-                  
+                  <rect x="-4" y="-10" width="14" height="34" rx="3" fill="#34D399" />
+
                   {/* Bar 3 (tallest - yellow) */}
-                  <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24"/>
+                  <rect x="14" y="-18" width="14" height="42" rx="3" fill="#FBBF24" />
                 </g>
               </svg>
               Multilingual Feedback Analyzer
@@ -703,217 +693,217 @@ export default function App(){
 
         {/* Session Expired Message */}
         {sessionExpiredMsg && (
-          <div className="error-message" style={{marginBottom: '20px', textAlign: 'center'}}>
+          <div className="error-message" style={{ marginBottom: '20px', textAlign: 'center' }}>
             ⚠️ {sessionExpiredMsg}
           </div>
         )}
 
         {/* Tab Content */}
-      <div id="main-content" className="tab-content" role="main">
-  {/* Submit Tab - Only visible for non-authenticated users */}
-  {!token && activeTab === 'submit' && (
-          <div className="card submit-card">
-            <h2>✍️ Submit Feedback</h2>
-            {/* Key forces remount on auth transitions to clear internal form state */}
-            <Submit 
-              key={token ? 'auth' : 'guest'} 
-              products={products} 
-              productsLoading={productsLoading}
-              productsError={productsError}
-              setFeedbackMsg={setFeedbackMsg}
-              setFeedbackErr={setFeedbackErr}
-              setIsSubmitting={setIsSubmitting}
-            />
-            
-            {/* Admin Login Link - Subtle placement at bottom */}
-            {!token && (
-              <div style={{textAlign: 'center', marginTop: '20px'}}>
-                <button 
-                  className="admin-link"
-                  onClick={() => {
-                    setShowLoginModal(true)
-                    setSessionExpiredMsg(null)
-                  }}
-                  aria-label="Open admin login"
-                  disabled={isSubmitting}
-                >
-                  Admin? Sign in here →
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Dashboard Tab - Only for authenticated users */}
-        {token && activeTab === 'dashboard' && (
-          <div className="card full-width">
-            <h2>Dashboard</h2>
-            <Dashboard 
-              token={token} 
-              setBulkMsg={setBulkMsg}
-              setBulkError={setBulkError}
-            />
-          </div>
-        )}
-
-        {/* Settings Tab - Only for authenticated users */}
-        {token && activeTab === 'settings' && (
-          <div className="settings-layout">
-            <div className="card" style={{minHeight: '450px'}}>
-              <h2>Manage Products</h2>
-              <div className="form-group">
-                <form onSubmit={handleAddProduct}>
-                  <label htmlFor="new-product">Add Product</label>
-                  <div style={{display:'flex', gap:8}}>
-                    <input id="new-product" name="name" placeholder="Product name" />
-                    <button type="submit" style={{width:'auto'}}>Add</button>
-                  </div>
-                </form>
-              </div>
-              <h3 style={{marginTop:12}}>Products</h3>
-              <ProductsManager 
+        <div id="main-content" className="tab-content" role="main">
+          {/* Submit Tab - Only visible for non-authenticated users */}
+          {!token && activeTab === 'submit' && (
+            <div className="card submit-card">
+              <h2>✍️ Submit Feedback</h2>
+              {/* Key forces remount on auth transitions to clear internal form state */}
+              <Submit
+                key={token ? 'auth' : 'guest'}
                 products={products}
                 productsLoading={productsLoading}
                 productsError={productsError}
-                setProductMsg={setProductMsg}
-                setProductErr={setProductErr}
-                loadProducts={loadProducts}
+                setFeedbackMsg={setFeedbackMsg}
+                setFeedbackErr={setFeedbackErr}
+                setIsSubmitting={setIsSubmitting}
+              />
+
+              {/* Admin Login Link - Subtle placement at bottom */}
+              {!token && (
+                <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                  <button
+                    className="admin-link"
+                    onClick={() => {
+                      setShowLoginModal(true)
+                      setSessionExpiredMsg(null)
+                    }}
+                    aria-label="Open admin login"
+                    disabled={isSubmitting}
+                  >
+                    Admin? Sign in here →
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Dashboard Tab - Only for authenticated users */}
+          {token && activeTab === 'dashboard' && (
+            <div className="card full-width">
+              <h2>Dashboard</h2>
+              <Dashboard
+                token={token}
+                setBulkMsg={setBulkMsg}
+                setBulkError={setBulkError}
               />
             </div>
-            <div className="card">
-              <h2>Gemini AI Model</h2>
-              <GeminiModelSelector setMsg={setGeminiMsg} setErr={setGeminiErr} />
-            </div>
-            <div className="card">
-              <h2>Change Password</h2>
-              <ChangePassword setMsg={setPasswordMsg} setErr={setPasswordErr} />
-            </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Login Modal */}
-      {showLoginModal && (
-        <>
-          {/* Modal Overlay */}
-          <div 
-            className="modal-overlay"
-            onClick={() => {
-              setShowLoginModal(false)
-              setLoginError(null)
-            }}
-          />
-          
-          {/* Modal Content */}
-          <div className="modal-content" role="dialog" aria-labelledby="login-modal-title" aria-modal="true">
-            <div className="modal-header">
-              <h2 id="login-modal-title">🔐 Admin Login</h2>
-              <button 
-                className="modal-close-btn"
-                onClick={() => {
-                  setShowLoginModal(false)
-                  setLoginError(null)
-                }}
-                aria-label="Close login modal"
-              >
-                ✖
-              </button>
-            </div>
-            
-            <form onSubmit={handleLogin}>
-              <div className="form-group">
-                <label htmlFor="username">Username</label>
-                <input 
-                  id="username" 
-                  value={username} 
-                  onChange={e=>setUsername(e.target.value)} 
-                  placeholder="admin"
-                  autoFocus
-                  required
-                  disabled={isSubmitting}
+          {/* Settings Tab - Only for authenticated users */}
+          {token && activeTab === 'settings' && (
+            <div className="settings-layout">
+              <div className="card" style={{ minHeight: '450px' }}>
+                <h2>Manage Products</h2>
+                <div className="form-group">
+                  <form onSubmit={handleAddProduct}>
+                    <label htmlFor="new-product">Add Product</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input id="new-product" name="name" placeholder="Product name" />
+                      <button type="submit" style={{ width: 'auto' }}>Add</button>
+                    </div>
+                  </form>
+                </div>
+                <h3 style={{ marginTop: 12 }}>Products</h3>
+                <ProductsManager
+                  products={products}
+                  productsLoading={productsLoading}
+                  productsError={productsError}
+                  setProductMsg={setProductMsg}
+                  setProductErr={setProductErr}
+                  loadProducts={loadProducts}
                 />
               </div>
-              <div className="form-group">
-                <label htmlFor="password">Password</label>
-                <input 
-                  id="password" 
-                  type="password" 
-                  value={password} 
-                  onChange={e=>setPassword(e.target.value)} 
-                  placeholder="Enter password"
-                  required
-                  disabled={isSubmitting}
-                />
+              <div className="card">
+                <h2>Gemini AI Model</h2>
+                <GeminiModelSelector setMsg={setGeminiMsg} setErr={setGeminiErr} />
               </div>
-              <button type="submit" className="btn-primary" disabled={loginLoading || isSubmitting}>
-                {loginLoading ? 'Logging in...' : 'Login'}
-              </button>
-              {loginError && <div className="error-message" role="alert">{loginError}</div>}
-            </form>
-            
-            <p className="hint" style={{marginTop: '16px', textAlign: 'center'}}>
-              Admin can view stats, manage feedback, and add products.
-            </p>
-          </div>
-        </>
-      )}
-      
-      {/* Toast Notification Container - Rendered via Portal */}
-      {createPortal(
-        <div className="toast-container">
-          {productMsg && (
-            <div className={`toast toast-success ${productMsgFadingOut ? 'fade-out' : ''}`}>
-              {productMsg}
+              <div className="card">
+                <h2>Change Password</h2>
+                <ChangePassword setMsg={setPasswordMsg} setErr={setPasswordErr} />
+              </div>
             </div>
           )}
-          {productErr && (
-            <div className="toast toast-error">
-              {productErr}
+        </div>
+
+        {/* Login Modal */}
+        {showLoginModal && (
+          <>
+            {/* Modal Overlay */}
+            <div
+              className="modal-overlay"
+              onClick={() => {
+                setShowLoginModal(false)
+                setLoginError(null)
+              }}
+            />
+
+            {/* Modal Content */}
+            <div className="modal-content" role="dialog" aria-labelledby="login-modal-title" aria-modal="true">
+              <div className="modal-header">
+                <h2 id="login-modal-title">🔐 Admin Login</h2>
+                <button
+                  className="modal-close-btn"
+                  onClick={() => {
+                    setShowLoginModal(false)
+                    setLoginError(null)
+                  }}
+                  aria-label="Close login modal"
+                >
+                  ✖
+                </button>
+              </div>
+
+              <form onSubmit={handleLogin}>
+                <div className="form-group">
+                  <label htmlFor="username">Username</label>
+                  <input
+                    id="username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="admin"
+                    autoFocus
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={loginLoading || isSubmitting}>
+                  {loginLoading ? 'Logging in...' : 'Login'}
+                </button>
+                {loginError && <div className="error-message" role="alert">{loginError}</div>}
+              </form>
+
+              <p className="hint" style={{ marginTop: '16px', textAlign: 'center' }}>
+                Admin can view stats, manage feedback, and add products.
+              </p>
             </div>
-          )}
-          {bulkMsg && (
-            <div className={`toast toast-success ${bulkMsgFadingOut ? 'fade-out' : ''}`}>
-              {bulkMsg}
-            </div>
-          )}
-          {bulkError && (
-            <div className="toast toast-error">
-              {bulkError}
-            </div>
-          )}
-          {geminiMsg && (
-            <div className={`toast toast-success ${geminiMsgFadingOut ? 'fade-out' : ''}`}>
-              {geminiMsg}
-            </div>
-          )}
-          {geminiErr && (
-            <div className="toast toast-error">
-              {geminiErr}
-            </div>
-          )}
-          {passwordMsg && (
-            <div className={`toast toast-success ${passwordMsgFadingOut ? 'fade-out' : ''}`}>
-              {passwordMsg}
-            </div>
-          )}
-          {passwordErr && (
-            <div className={`toast toast-error ${passwordErrFadingOut ? 'fade-out' : ''}`}>
-              {passwordErr}
-            </div>
-          )}
-          {feedbackMsg && (
-            <div className={`toast toast-success ${feedbackMsgFadingOut ? 'fade-out' : ''}`}>
-              {feedbackMsg}
-            </div>
-          )}
-          {feedbackErr && (
-            <div className="toast toast-error">
-              {feedbackErr}
-            </div>
-          )}
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+
+        {/* Toast Notification Container - Rendered via Portal */}
+        {createPortal(
+          <div className="toast-container">
+            {productMsg && (
+              <div className={`toast toast-success ${productMsgFadingOut ? 'fade-out' : ''}`}>
+                {productMsg}
+              </div>
+            )}
+            {productErr && (
+              <div className="toast toast-error">
+                {productErr}
+              </div>
+            )}
+            {bulkMsg && (
+              <div className={`toast toast-success ${bulkMsgFadingOut ? 'fade-out' : ''}`}>
+                {bulkMsg}
+              </div>
+            )}
+            {bulkError && (
+              <div className="toast toast-error">
+                {bulkError}
+              </div>
+            )}
+            {geminiMsg && (
+              <div className={`toast toast-success ${geminiMsgFadingOut ? 'fade-out' : ''}`}>
+                {geminiMsg}
+              </div>
+            )}
+            {geminiErr && (
+              <div className="toast toast-error">
+                {geminiErr}
+              </div>
+            )}
+            {passwordMsg && (
+              <div className={`toast toast-success ${passwordMsgFadingOut ? 'fade-out' : ''}`}>
+                {passwordMsg}
+              </div>
+            )}
+            {passwordErr && (
+              <div className={`toast toast-error ${passwordErrFadingOut ? 'fade-out' : ''}`}>
+                {passwordErr}
+              </div>
+            )}
+            {feedbackMsg && (
+              <div className={`toast toast-success ${feedbackMsgFadingOut ? 'fade-out' : ''}`}>
+                {feedbackMsg}
+              </div>
+            )}
+            {feedbackErr && (
+              <div className="toast toast-error">
+                {feedbackErr}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
       </div>
     </>
   )

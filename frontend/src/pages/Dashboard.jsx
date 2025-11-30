@@ -42,42 +42,13 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
   async function loadFilters() {
     try {
       setIsProcessing(true)
-      const res = await fetchWithAuth('/api/feedback?limit=1000')
+      const res = await fetchWithAuth('/api/filters')
       if (!res.ok) return
       const data = await res.json()
-      // support multiple shapes: plain array (backend returns list),
-      // or wrapped shapes: { items: [...] } or { value: [...] }
-      const feedbackList = Array.isArray(data) ? data : data.items || data.value || data.results || []
-      // Map empty/null -> explicit "(unspecified)" so the UI
-      // shows a selectable option instead of hiding these values.
-      const productsRaw = feedbackList.map((f) => {
-        const v = (f.product || "").toString().trim();
-        return v === "" ? "(unspecified)" : v;
-      });
-      const languagesRaw = feedbackList.map((f) => {
-        const v = (f.language || "").toString().trim();
-        return v === "" ? "(unspecified)" : v;
-      });
-      const sentimentsRaw = feedbackList.map((f) => {
-        const v = (f.sentiment || "").toString().trim().toLowerCase();
-        return v === "" ? "(unspecified)" : v;
-      });
 
-      const uniqueProducts = [...new Set(productsRaw)];
-      const uniqueLanguages = [...new Set(languagesRaw)];
-      const uniqueSentiments = [...new Set(sentimentsRaw)];
-
-      // Sort alphabetically but ensure "(unspecified)" appears last.
-      const sortWithUnspecifiedLast = (a, b) => {
-        if (a === b) return 0;
-        if (a === "(unspecified)") return 1;
-        if (b === "(unspecified)") return -1;
-        return a.localeCompare(b);
-      };
-
-      setProducts(uniqueProducts.sort(sortWithUnspecifiedLast));
-      setLanguages(uniqueLanguages.sort(sortWithUnspecifiedLast));
-      setSentiments(uniqueSentiments.sort(sortWithUnspecifiedLast));
+      setProducts(data.products || [])
+      setLanguages(data.languages || [])
+      setSentiments(data.sentiments || [])
     } catch (err) {
       console.error('Error loading filters:', err)
     } finally {
@@ -132,6 +103,19 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
       setShowSpinner(false)
     }
   }
+
+  // Centralized refresh logic
+  const refreshAll = (resetFilters = false) => {
+    // Set a flag to prevent automatic useEffect re-fetches from racing with this manual refresh.
+    //isManualRefresh.current = true;
+
+    if (resetFilters) {
+      setSelectedProduct('');
+      setSelectedLanguage('');
+      setSelectedSentiment('');
+    }
+    Promise.all([loadFilters(), load(), loadFeedbackPage(0)]);
+  };
 
   useEffect(() => { loadFilters() }, [])
   useEffect(() => {
@@ -445,7 +429,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
               onClick={() => {
                 setBulkMsg(null);
                 setBulkError(null);
-                refreshAll(true);
+                refreshAll(false);
               }}
               disabled={loading || isProcessing}
               title="Refresh data"
@@ -554,7 +538,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
               onClick={() => {
                 setBulkMsg(null);
                 setBulkError(null);
-                refreshAll(true);
+                refreshAll(false);
               }}
               disabled={loading || isProcessing}
               title="Refresh data"
@@ -806,7 +790,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                   <button
                     className="btn-danger"
                     style={{ width: 'auto' }}
-                    onClick={deleteSelected}
+                    onClick={() => {
+                      // Catch cancellation to prevent unhandled promise rejection error in console
+                      deleteSelected().catch(() => { });
+                    }}
                     disabled={isProcessing || selectedIds.length === 0}
                   >Delete Selected ({selectedIds.length})</button>
                   <button
@@ -814,7 +801,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                     style={{ width: 'auto' }}
                     onClick={deleteAllFiltered}
                     disabled={isProcessing || totalFeedback === 0}
-                  >{selectedProduct || selectedLanguage || selectedSentiment ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
+                  >{selectedProduct || selectedLanguage || selectedSentiment
+                    ? `Delete All Filtered (${totalFeedback})`
+                    : `Delete All (${totalFeedback})`
+                    }</button>
 
                   {/* View Options Dropdown */}
                   <div style={{ position: 'relative', display: 'inline-block' }}>

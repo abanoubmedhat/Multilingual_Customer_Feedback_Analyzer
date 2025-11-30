@@ -279,6 +279,37 @@ def read_root():
 
 
 @app.get(
+    "/api/filters",
+    response_model=schemas.FiltersResponse,
+    tags=["feedback"],
+    responses={
+        200: {"description": "List of available filters"}
+    }
+)
+async def get_filters(db: AsyncSession = Depends(get_db), _: dict = Depends(get_current_admin)):
+    """
+    Get distinct values for filters (product, language, sentiment).
+    """
+    # Fetch distinct products
+    products_res = await db.execute(select(models.Feedback.product).distinct())
+    products = [p for p in products_res.scalars().all() if p]
+
+    # Fetch distinct languages
+    languages_res = await db.execute(select(models.Feedback.language).distinct())
+    languages = [l for l in languages_res.scalars().all() if l]
+
+    # Fetch distinct sentiments
+    sentiments_res = await db.execute(select(models.Feedback.sentiment).distinct())
+    sentiments = [s for s in sentiments_res.scalars().all() if s]
+
+    return {
+        "products": sorted(products),
+        "languages": sorted(languages),
+        "sentiments": sorted(sentiments)
+    }
+
+
+@app.get(
     "/api/feedback",
     tags=["feedback"],
     responses={

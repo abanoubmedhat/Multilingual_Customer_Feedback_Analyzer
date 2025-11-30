@@ -89,3 +89,10 @@ class ModelSetting(BaseModel):
 
 class ModelSettingUpdate(BaseModel):
     model_name: str
+
+
+# --- Filter Schemas ---
+class FiltersResponse(BaseModel):
+    products: List[str]
+    languages: List[str]
+    sentiments: List[str]

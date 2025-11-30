@@ -18,39 +18,48 @@ describe('Dashboard Component', () => {
         headers: new Headers(),
       })
     )
-    
+
     // Reset mock functions
     mockSetBulkMsg.mockClear()
     mockSetBulkError.mockClear()
   })
 
-  const setupMockFetch = (statsData, feedbackData) => {
-    global.fetch.mockImplementation((url) => {
-      if (url.includes('/api/stats')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => statsData,
-          headers: new Headers(),
-        })
-      }
-      if (url.includes('/api/feedback')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => feedbackData,
-          headers: new Headers(),
-        })
-      }
+// 1️⃣ Mock helper – place near the top, where other helpers are defined
+const setupMockFetch = (
+  statsData,
+  feedbackData,
+  filtersData = { products: [], languages: [], sentiments: [] }
+) => {
+  global.fetch.mockImplementation((url) => {
+    if (url.includes('/api/stats')) {
       return Promise.resolve({
-        ok: false,
+        ok: true,
+        json: async () => statsData,
         headers: new Headers(),
-      })
-    })
-  }
+      });
+    }
+    if (url.includes('/api/filters')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => filtersData,
+        headers: new Headers(),
+      });
+    }
+    if (url.includes('/api/feedback')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => feedbackData,
+        headers: new Headers(),
+      });
+    }
+    return Promise.resolve({ ok: false, headers: new Headers() });
+  });
+};
 
   it('renders loading state initially', () => {
     setupMockFetch({}, { total: 0, items: [] })
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     expect(screen.getByText(/Loading dashboard data/i)).toBeInTheDocument()
   })
 
@@ -60,10 +69,10 @@ describe('Dashboard Component', () => {
       counts: { positive: 60, neutral: 30, negative: 10 },
       percentages: { positive: 60, neutral: 30, negative: 10 },
     }
-    
+
     setupMockFetch(mockStats, { total: 100, items: [] })
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('100')).toBeInTheDocument() // Total count
       expect(screen.getByText('60')).toBeInTheDocument() // Positive count
@@ -83,10 +92,10 @@ describe('Dashboard Component', () => {
       counts: {},
       percentages: {},
     }
-    
+
     setupMockFetch(mockStats, { total: 0, items: [] })
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     await waitFor(() => {
       expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument()
     })
@@ -98,7 +107,7 @@ describe('Dashboard Component', () => {
       counts: { positive: 20 },
       percentages: { positive: 100 },
     }
-    
+
     const mockFeedback = {
       total: 20,
       items: [
@@ -122,69 +131,85 @@ describe('Dashboard Component', () => {
       skip: 0,
       limit: 5,
     }
-    
+
     setupMockFetch(mockStats, mockFeedback)
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Great product!')).toBeInTheDocument()
       expect(screen.getByText('Not bad')).toBeInTheDocument()
     })
   })
 
-  it('filters feedback by product', async () => {
-    const user = userEvent.setup()
-    
-    const mockStats = {
-      total: 5,
-      counts: { positive: 5 },
-      percentages: { positive: 100 },
-    }
-    
-    const mockFeedback = {
-      total: 5,
-      items: [
-        {
-          id: 1,
-          original_text: 'Test feedback',
-          translated_text: 'Test feedback',
-          sentiment: 'positive',
-          language: 'en',
-          product: 'Product A',
-        },
-      ],
-      skip: 0,
-      limit: 5,
-    }
-    
-    setupMockFetch(mockStats, mockFeedback)
-    render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
-    await waitFor(() => {
-      expect(screen.getByLabelText(/Product:/i)).toBeInTheDocument()
-    })
-    
-    // Select product filter
-    const productFilter = screen.getByLabelText(/Product:/i)
-    await user.selectOptions(productFilter, 'Product A')
-    
-    // Verify fetch was called with product parameter
-    await waitFor(() => {
-      const calls = global.fetch.mock.calls
-      const feedbackCalls = calls.filter(call => call[0].includes('/api/feedback'))
-      expect(feedbackCalls.some(call => call[0].includes('product=Product'))).toBe(true)
-    })
-  })
+  // 2️⃣ In the “filters feedback by product” test, pass the filter data
+it('filters feedback by product', async () => {
+  const user = userEvent.setup();
+
+  const mockStats = {
+    total: 5,
+    counts: { positive: 5 },
+    percentages: { positive: 100 },
+  };
+
+  const mockFeedback = {
+    total: 5,
+    items: [
+      {
+        id: 1,
+        original_text: 'Test feedback',
+        translated_text: 'Test feedback',
+        sentiment: 'positive',
+        language: 'en',
+        product: 'Product A',
+      },
+    ],
+    skip: 0,
+    limit: 5,
+  };
+
+  // 👇 supply a product list that includes “Product A”
+  const mockFilters = {
+    products: ['Product A', 'Product B'],
+    languages: [],
+    sentiments: [],
+  };
+
+  setupMockFetch(mockStats, mockFeedback, mockFilters);
+  render(
+    <Dashboard
+      token={mockToken}
+      setBulkMsg={mockSetBulkMsg}
+      setBulkError={mockSetBulkError}
+    />
+  );
+
+  await waitFor(() => {
+    expect(screen.getByLabelText(/Product:/i)).toBeInTheDocument();
+  });
+
+  // Select product filter
+  const productFilter = screen.getByLabelText(/Product:/i);
+  await user.selectOptions(productFilter, 'Product A');
+
+  // Verify fetch was called with the product query param
+  await waitFor(() => {
+    const calls = global.fetch.mock.calls;
+    const feedbackCalls = calls.filter((c) => c[0].includes('/api/feedback'));
+    expect(
+      feedbackCalls.some((c) => c[0].includes('product=Product+A'))
+    ).toBe(true);
+  });
+});
 
   it('handles pagination controls', async () => {
     const user = userEvent.setup()
-    
+
     const mockStats = {
       total: 20,
       counts: { positive: 20 },
       percentages: { positive: 100 },
     }
-    
+
     const mockFeedback = {
       total: 20,
       items: Array(5).fill(null).map((_, i) => ({
@@ -198,18 +223,18 @@ describe('Dashboard Component', () => {
       skip: 0,
       limit: 5,
     }
-    
-    setupMockFetch(mockStats, mockFeedback)
+
+    setupMockFetch(mockStats, mockFeedback, ['Product A', 'Product B'])
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     await waitFor(() => {
       expect(screen.getByText(/Page 1 of/i)).toBeInTheDocument()
     })
-    
+
     // Next button should be enabled
     const nextBtn = screen.getByRole('button', { name: /Next/i })
     expect(nextBtn).not.toBeDisabled()
-    
+
     // Prev button should be disabled on first page
     const prevBtn = screen.getByRole('button', { name: /Prev/i })
     expect(prevBtn).toBeDisabled()
@@ -217,30 +242,30 @@ describe('Dashboard Component', () => {
 
   it('changes page size', async () => {
     const user = userEvent.setup()
-    
+
     const mockStats = {
       total: 50,
       counts: { positive: 50 },
       percentages: { positive: 100 },
     }
-    
+
     const mockFeedback = {
       total: 50,
       items: [],
       skip: 0,
       limit: 5,
     }
-    
-    setupMockFetch(mockStats, mockFeedback)
+
+    setupMockFetch(mockStats, mockFeedback, ['Product A', 'Product B'])
     render(<Dashboard token={mockToken} setBulkMsg={mockSetBulkMsg} setBulkError={mockSetBulkError} />)
-    
+
     await waitFor(() => {
       expect(screen.getByLabelText(/Per page:/i)).toBeInTheDocument()
     })
-    
+
     const pageSizeSelect = screen.getByLabelText(/Per page:/i)
     await user.selectOptions(pageSizeSelect, '10')
-    
+
     // Verify fetch was called with new limit
     await waitFor(() => {
       const calls = global.fetch.mock.calls
@@ -248,5 +273,4 @@ describe('Dashboard Component', () => {
       expect(feedbackCalls.some(call => call[0].includes('limit=10'))).toBe(true)
     })
   })
-
-})
+});

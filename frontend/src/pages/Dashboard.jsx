@@ -23,7 +23,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
   // Visibility toggles for optional fields
-  const [needsRefresh, setNeedsRefresh] = useState({ refresh: false, reset: false });
+
 
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showFieldsMenu, setShowFieldsMenu] = useState(false)
@@ -106,40 +106,26 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
 
   // Centralized refresh logic
   const refreshAll = (resetFilters = false) => {
-    // Set a flag to prevent automatic useEffect re-fetches from racing with this manual refresh.
-    //isManualRefresh.current = true;
-
     if (resetFilters) {
+      const hasChanges = selectedProduct !== '' || selectedLanguage !== '' || selectedSentiment !== '' || page !== 0;
+
       setSelectedProduct('');
       setSelectedLanguage('');
       setSelectedSentiment('');
-    }
-    Promise.all([loadFilters(), load(), loadFeedbackPage(0)]);
-  };
+      setPage(0);
 
-  useEffect(() => { loadFilters() }, [])
-  useEffect(() => {
-    if (isManualRefresh.current) return;
-    load()
-  }, [selectedProduct, selectedLanguage, selectedSentiment])
-
-  useEffect(() => {
-    if (isManualRefresh.current) {
-      // Reset the flag after the effect has been skipped once.
-      // The setTimeout ensures it resets after the current render cycle.
-      setTimeout(() => { isManualRefresh.current = false; }, 0);
+      if (!hasChanges) {
+        Promise.all([loadFilters(), load(), loadFeedbackPage(0)]);
+      }
       return;
     }
-    loadFeedbackPage(0)
-  }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize])
+    Promise.all([loadFilters(), load(), loadFeedbackPage(page)]);
+  };
 
-  // Declarative refresh effect
+  // Single effect to handle all data refreshing
   useEffect(() => {
-    if (needsRefresh.refresh) {
-      refreshAll(needsRefresh.reset);
-      setNeedsRefresh({ refresh: false, reset: false }); // Reset the trigger
-    }
-  }, [needsRefresh]);
+    refreshAll();
+  }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize, page]);
 
   // Initialize page size from localStorage (if previously set)
   useEffect(() => {
@@ -256,14 +242,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
 
             setSelectedIds([])
             // If the last item(s) on the page were deleted, reset filters and go to the first page.
-            // We must set state and then await the refresh to avoid race conditions with useEffect.
             if (feedbackPage.length === selectedIds.length) {
-              // Use a functional update to ensure we have the latest state before refreshing.
-              setSelectedProduct(() => '');
-              setSelectedLanguage(() => '');
-              setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
+              refreshAll(true);
             } else {
-              setNeedsRefresh({ refresh: true, reset: false });
+              refreshAll(false);
             }
             resolve() // Resolve the promise on success
           } catch (e) {
@@ -320,9 +302,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
             setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             setSelectedIds([])
             // Clear filters since the filtered items no longer exist.
-            setSelectedProduct(() => '');
-            setSelectedLanguage(() => '');
-            setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
+            refreshAll(true);
 
             resolve() // Resolve the promise on success
           } catch (e) {
@@ -373,6 +353,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedProduct}
                 onChange={(e) => {
                   setSelectedProduct(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -391,6 +372,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedLanguage}
                 onChange={(e) => {
                   setSelectedLanguage(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -409,6 +391,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedSentiment}
                 onChange={(e) => {
                   setSelectedSentiment(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -482,6 +465,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedProduct}
                 onChange={(e) => {
                   setSelectedProduct(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -500,6 +484,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedLanguage}
                 onChange={(e) => {
                   setSelectedLanguage(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -518,6 +503,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
                 value={selectedSentiment}
                 onChange={(e) => {
                   setSelectedSentiment(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
@@ -734,11 +720,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
 
                                   // If the last item on the page was deleted, reset filters and go to the first page.
                                   if (feedbackPage.length === 1) {
-                                    setSelectedProduct(() => '');
-                                    setSelectedLanguage(() => '');
-                                    setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
+                                    refreshAll(true);
                                   } else {
-                                    setNeedsRefresh({ refresh: true, reset: false });
+                                    refreshAll(false);
                                   }
                                 } catch (e) {
                                   setBulkError(`⚠️ ${e.message}`);

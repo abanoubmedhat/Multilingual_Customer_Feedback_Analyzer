@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchWithAuth } from '../utils/fetchWithAuth'
 
-export default function Dashboard({ token, setBulkMsg, setBulkError }){
+export default function Dashboard({ token, setBulkMsg, setBulkError }) {
   // State declarations
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -12,7 +12,6 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [products, setProducts] = useState([])
   const [languages, setLanguages] = useState([])
   const [sentiments, setSentiments] = useState([])
-  const [sampleFeedback, setSampleFeedback] = useState([])
   const [feedbackPage, setFeedbackPage] = useState([])
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(5)
@@ -24,7 +23,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const [showTranslated, setShowTranslated] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected'|'all', count: number, filter: string, onConfirm: fn }
   // Visibility toggles for optional fields
-  const [needsRefresh, setNeedsRefresh] = useState({ refresh: false, reset: false });
+
 
   const [showTimestamp, setShowTimestamp] = useState(true)
   const [showFieldsMenu, setShowFieldsMenu] = useState(false)
@@ -40,55 +39,25 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     setSelectedIds([]);
   }, [page]);
 
-  async function loadFilters(){
-    try{
+  async function loadFilters() {
+    try {
       setIsProcessing(true)
-      const res = await fetchWithAuth('/api/feedback?limit=1000')
+      const res = await fetchWithAuth('/api/filters')
       if (!res.ok) return
-  const data = await res.json()
-  // support multiple shapes: plain array (backend returns list),
-  // or wrapped shapes: { items: [...] } or { value: [...] }
-  const feedbackList = Array.isArray(data) ? data : data.items || data.value || data.results || []
-      // Map empty/null -> explicit "(unspecified)" so the UI
-      // shows a selectable option instead of hiding these values.
-      const productsRaw = feedbackList.map((f) => {
-        const v = (f.product || "").toString().trim();
-        return v === "" ? "(unspecified)" : v;
-      });
-      const languagesRaw = feedbackList.map((f) => {
-        const v = (f.language || "").toString().trim();
-        return v === "" ? "(unspecified)" : v;
-      });
-      const sentimentsRaw = feedbackList.map((f) => {
-        const v = (f.sentiment || "").toString().trim().toLowerCase();
-        return v === "" ? "(unspecified)" : v;
-      });
+      const data = await res.json()
 
-      const uniqueProducts = [...new Set(productsRaw)];
-      const uniqueLanguages = [...new Set(languagesRaw)];
-      const uniqueSentiments = [...new Set(sentimentsRaw)];
-
-      // Sort alphabetically but ensure "(unspecified)" appears last.
-      const sortWithUnspecifiedLast = (a, b) => {
-        if (a === b) return 0;
-        if (a === "(unspecified)") return 1;
-        if (b === "(unspecified)") return -1;
-        return a.localeCompare(b);
-      };
-
-      setProducts(uniqueProducts.sort(sortWithUnspecifiedLast));
-      setLanguages(uniqueLanguages.sort(sortWithUnspecifiedLast));
-      setSentiments(uniqueSentiments.sort(sortWithUnspecifiedLast));
-      setSampleFeedback(feedbackList.slice(0,6))
-    }catch(err){
+      setProducts(data.products || [])
+      setLanguages(data.languages || [])
+      setSentiments(data.sentiments || [])
+    } catch (err) {
       console.error('Error loading filters:', err)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  async function loadFeedbackPage(p = 0){
-    try{
+  async function loadFeedbackPage(p = 0) {
+    try {
       setIsProcessing(true)
       const params = new URLSearchParams()
       if (selectedProduct) params.append('product', selectedProduct)
@@ -103,19 +72,19 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       setFeedbackPage(Array.isArray(data.items) ? data.items : [])
       setTotalFeedback(data.total || 0)
       setPage(p)
-    }catch(err){
+    } catch (err) {
       console.error('Error loading feedback page:', err)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  async function load(){
-  setLoading(true)
-  setError(null)
-  // Only show spinner if loading takes longer than 300ms
-  let spinnerTimeout = setTimeout(() => setShowSpinner(true), 300)
-    try{
+  async function load() {
+    setLoading(true)
+    setError(null)
+    // Only show spinner if loading takes longer than 300ms
+    let spinnerTimeout = setTimeout(() => setShowSpinner(true), 300)
+    try {
       let url = '/api/stats'
       const params = new URLSearchParams()
       if (selectedProduct) params.append('product', selectedProduct)
@@ -126,38 +95,37 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStats(data)
-    }catch(err){
+    } catch (err) {
       setError(err.message)
-    }finally{
+    } finally {
       setLoading(false)
       clearTimeout(spinnerTimeout)
       setShowSpinner(false)
     }
   }
 
-  useEffect(()=>{ loadFilters() }, [])
-  useEffect(()=>{
-    if (isManualRefresh.current) return;
-    load()
-  }, [selectedProduct, selectedLanguage, selectedSentiment])
-  
-  useEffect(()=>{
-    if (isManualRefresh.current) {
-      // Reset the flag after the effect has been skipped once.
-      // The setTimeout ensures it resets after the current render cycle.
-      setTimeout(() => { isManualRefresh.current = false; }, 0);
+  // Centralized refresh logic
+  const refreshAll = (resetFilters = false) => {
+    if (resetFilters) {
+      const hasChanges = selectedProduct !== '' || selectedLanguage !== '' || selectedSentiment !== '' || page !== 0;
+
+      setSelectedProduct('');
+      setSelectedLanguage('');
+      setSelectedSentiment('');
+      setPage(0);
+
+      if (!hasChanges) {
+        Promise.all([loadFilters(), load(), loadFeedbackPage(0)]);
+      }
       return;
     }
-    loadFeedbackPage(0)
-  }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize])
+    Promise.all([loadFilters(), load(), loadFeedbackPage(page)]);
+  };
 
-  // Declarative refresh effect
+  // Single effect to handle all data refreshing
   useEffect(() => {
-    if (needsRefresh.refresh) {
-      refreshAll(needsRefresh.reset);
-      setNeedsRefresh({ refresh: false, reset: false }); // Reset the trigger
-    }
-  }, [needsRefresh]);
+    refreshAll();
+  }, [selectedProduct, selectedLanguage, selectedSentiment, pageSize, page]);
 
   // Initialize page size from localStorage (if previously set)
   useEffect(() => {
@@ -202,54 +170,25 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
       container.scrollTop = Math.min(Math.max(0, proposed), maxScroll)
     }
     lastBtnTopRef.current = null
-  }, [showTranslated])
+  }, [showTranslated, showTimestamp])
 
-  // Unified refresh helper: refresh filters, stats, and the current page
-  async function refreshAll(resetToFirstPage = true){
-    isManualRefresh.current = true;
-    // Kick off in parallel for snappier UI; load() manages its own loading state
-    const pageToLoad = resetToFirstPage ? 0 : page
-    await Promise.allSettled([
-      (async ()=>{ await loadFilters() })(),
-      (async ()=>{ await load() })(),
-      (async ()=>{ await loadFeedbackPage(pageToLoad) })(),
-    ])
-    // After the manual refresh is complete, reset the flag.
-    // The timeout ensures this happens after any pending state updates from the refresh.
-    setTimeout(() => { isManualRefresh.current = false; }, 0);
-  }
-
-  // Listen for feedback creation events (from Submit form) to auto-refresh dashboard
+  // Handle Escape key to close modal
   useEffect(() => {
-    function onCreated(){
-      // After a new feedback arrives, reset to first page so the newest item is visible
-      refreshAll(true)
-    }
-    window.addEventListener('feedback:created', onCreated)
-    return () => window.removeEventListener('feedback:created', onCreated)
-  }, [page, pageSize, selectedProduct, selectedLanguage, selectedSentiment])
+    if (!confirmDelete) return
 
-  // Prevent body scroll when confirm modal is open
-  useEffect(() => {
-    if (confirmDelete) {
-      document.body.style.overflow = 'hidden'
-      
-      // Handle Escape key to close modal
-      const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-          if (confirmDelete.onCancel) {
-            confirmDelete.onCancel();
-          } else {
-            setConfirmDelete(null);
-          }
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        if (confirmDelete.onCancel) {
+          confirmDelete.onCancel();
+        } else {
+          setConfirmDelete(null);
         }
       }
-      document.addEventListener('keydown', handleEscape)
-      
-      return () => {
-        document.body.style.overflow = ''
-        document.removeEventListener('keydown', handleEscape)
-      }
+    }
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
     }
   }, [confirmDelete])
 
@@ -258,22 +197,22 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   const emojis = { positive: '😊', neutral: '😐', negative: '😞' }
   const totalPages = Math.ceil(totalFeedback / pageSize) || 0
 
-  function toggleId(id){
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id])
+  function toggleId(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  function toggleAll(){
-    if (selectedIds.length === feedbackPage.length){
+  function toggleAll() {
+    if (selectedIds.length === feedbackPage.length) {
       setSelectedIds([])
     } else {
-      setSelectedIds(feedbackPage.map(f=>f.id))
+      setSelectedIds(feedbackPage.map(f => f.id))
     }
   }
 
-  async function deleteSelected(){
+  async function deleteSelected() {
     if (selectedIds.length === 0) return
     setBulkError(null); setBulkMsg(null)
-    
+
     // Create a promise that resolves when user confirms or rejects when cancelled
     return new Promise((resolve, reject) => {
       setIsProcessing(true)
@@ -298,7 +237,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 } else if (typeof errorData.detail === 'object') {
                   detail = JSON.stringify(errorData.detail);
                 }
-              } catch {}
+              } catch { }
               throw new Error(detail);
             }
 
@@ -308,17 +247,13 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
 
             setSelectedIds([])
             // If the last item(s) on the page were deleted, reset filters and go to the first page.
-            // We must set state and then await the refresh to avoid race conditions with useEffect.
             if (feedbackPage.length === selectedIds.length) {
-              // Use a functional update to ensure we have the latest state before refreshing.
-              setSelectedProduct(() => '');
-              setSelectedLanguage(() => '');
-              setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
+              refreshAll(true);
             } else {
-              setNeedsRefresh({ refresh: true, reset: false });
+              refreshAll(false);
             }
             resolve() // Resolve the promise on success
-          } catch(e){
+          } catch (e) {
             setBulkError(`⚠️ ${e.message}`)
             reject(e) // Reject on error
           } finally {
@@ -335,9 +270,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
     })
   }
 
-  async function deleteAllFiltered(){
+  async function deleteAllFiltered() {
     setBulkError(null); setBulkMsg(null)
-    
+
     // Create a promise that resolves when user confirms or rejects when cancelled
     return new Promise((resolve, reject) => {
       setIsProcessing(true)
@@ -364,7 +299,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                 } else if (typeof errorData.detail === 'object') {
                   detail = JSON.stringify(errorData.detail)
                 }
-              } catch {}
+              } catch { }
               throw new Error(detail)
             }
             const data = await res.json()
@@ -372,12 +307,10 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
             setBulkMsg(`✅ Deleted ${deletedCount} feedback entries.`)
             setSelectedIds([])
             // Clear filters since the filtered items no longer exist.
-            setSelectedProduct(() => '');
-            setSelectedLanguage(() => '');
-            setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
-            
+            refreshAll(true);
+
             resolve() // Resolve the promise on success
-          } catch(e){
+          } catch (e) {
             setBulkError(`⚠️ ${e.message}`)
             reject(e) // Reject on error
           } finally {
@@ -397,9 +330,9 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
   return (
     <div>
       {/* Screen reader announcements */}
-      <div 
-        role="status" 
-        aria-live="polite" 
+      <div
+        role="status"
+        aria-live="polite"
         aria-atomic="true"
         className="sr-only"
       >
@@ -408,211 +341,217 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
         {stats && !loading && `Dashboard loaded. Total feedback: ${stats.total}`}
       </div>
 
-  {showSpinner && <div className="loading">📊 Loading stats...</div>}
-      
+      {showSpinner && <div className="loading">📊 Loading stats...</div>}
+
       {error && (
         <div className="error-message" role="alert">Error: {error}</div>
       )}
 
       {stats && stats.total === 0 && (
 
-          <div>
-            <div className="filter-section">
-              <div className="filter-group">
-                <label htmlFor="product-filter">Product:</label>
-                <select 
-                  id="product-filter"
-                  value={selectedProduct} 
-                  onChange={(e) => {
-                    setSelectedProduct(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Products</option>
-                  {products.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            
-              <div className="filter-group">
-                <label htmlFor="language-filter">Language:</label>
-                <select 
-                  id="language-filter"
-                  value={selectedLanguage} 
-                  onChange={(e) => {
-                    setSelectedLanguage(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Languages</option>
-                  {languages.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </div>
-
-              <div className="filter-group">
-                <label htmlFor="sentiment-filter">Sentiment:</label>
-                <select 
-                  id="sentiment-filter"
-                  value={selectedSentiment} 
-                  onChange={(e) => {
-                    setSelectedSentiment(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Sentiments</option>
-                  {sentiments.map(s => (
-                    <option key={s} value={s}>
-                      {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button 
-                className="filter-btn refresh-btn" 
-                onClick={()=>{
-                  setBulkMsg(null);
-                  setBulkError(null);
-                  refreshAll(true);
-                }} 
-                disabled={loading || isProcessing}
-                title="Refresh data"
-              >
-                🔄
-              </button>
-
-              <button 
-                className="filter-btn clear-btn" 
-                onClick={()=>{
-                  setSelectedProduct('');
-                  setSelectedLanguage('');
-                  setSelectedSentiment('');
+        <div>
+          <div className="filter-section">
+            <div className="filter-group">
+              <label htmlFor="product-filter">Product:</label>
+              <select
+                id="product-filter"
+                value={selectedProduct}
+                onChange={(e) => {
+                  setSelectedProduct(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
-                title="Clear all filters"
+                disabled={isProcessing}
+                className="filter-select"
               >
-                ✖
-              </button>
+                <option value="">All Products</option>
+                {products.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
 
-            {stats && stats.total === 0 && (
-              <div className="empty-state">
-                <div className="empty-state-icon">📭</div>
-                {selectedProduct || selectedLanguage || selectedSentiment ? (
-                  <div>
-                    <p>No feedback matches the current filters.</p>
-                    <p style={{fontSize: '14px', color: '#666', marginTop: '8px'}}>
-                      Try clearing the filters or adjusting your selection.
-                    </p>
-                  </div>
-                ) : (
-                  <p>No feedback yet. Submit some feedback to see statistics!</p>
-                )}
-              </div>
-            )}
-            {/* Debug info removed for production UI */}
+            <div className="filter-group">
+              <label htmlFor="language-filter">Language:</label>
+              <select
+                id="language-filter"
+                value={selectedLanguage}
+                onChange={(e) => {
+                  setSelectedLanguage(e.target.value);
+                  setPage(0);
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
+                disabled={isProcessing}
+                className="filter-select"
+              >
+                <option value="">All Languages</option>
+                {languages.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label htmlFor="sentiment-filter">Sentiment:</label>
+              <select
+                id="sentiment-filter"
+                value={selectedSentiment}
+                onChange={(e) => {
+                  setSelectedSentiment(e.target.value);
+                  setPage(0);
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
+                disabled={isProcessing}
+                className="filter-select"
+              >
+                <option value="">All Sentiments</option>
+                {sentiments.map(s => (
+                  <option key={s} value={s}>
+                    {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="filter-btn refresh-btn"
+              onClick={() => {
+                setBulkMsg(null);
+                setBulkError(null);
+                refreshAll(false);
+              }}
+              disabled={loading || isProcessing}
+              title="Refresh data"
+            >
+              🔄
+            </button>
+
+            <button
+              className="filter-btn clear-btn"
+              onClick={() => {
+                setSelectedProduct('');
+                setSelectedLanguage('');
+                setSelectedSentiment('');
+                setBulkMsg(null);
+                setBulkError(null);
+              }}
+              disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
+              title="Clear all filters"
+            >
+              ✖
+            </button>
           </div>
-        )}
 
-        {stats && stats.total > 0 && (
-          <div>
-            <div className="filter-section">
-              <div className="filter-group">
-                <label htmlFor="product-filter">Product:</label>
-                <select 
-                  id="product-filter"
-                  value={selectedProduct} 
-                  onChange={(e) => {
-                    setSelectedProduct(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Products</option>
-                  {products.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            
-              <div className="filter-group">
-                <label htmlFor="language-filter">Language:</label>
-                <select 
-                  id="language-filter"
-                  value={selectedLanguage} 
-                  onChange={(e) => {
-                    setSelectedLanguage(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Languages</option>
-                  {languages.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-              </div>
+          {stats && stats.total === 0 && (
+            <div className="empty-state">
+              <div className="empty-state-icon">📭</div>
+              {selectedProduct || selectedLanguage || selectedSentiment ? (
+                <div>
+                  <p>No feedback matches the current filters.</p>
+                  <p style={{ fontSize: '14px', color: '#666', marginTop: '8px' }}>
+                    Try clearing the filters or adjusting your selection.
+                  </p>
+                </div>
+              ) : (
+                <p>No feedback yet. Submit some feedback to see statistics!</p>
+              )}
+            </div>
+          )}
+          {/* Debug info removed for production UI */}
+        </div>
+      )}
 
-              <div className="filter-group">
-                <label htmlFor="sentiment-filter">Sentiment:</label>
-                <select 
-                  id="sentiment-filter"
-                  value={selectedSentiment} 
-                  onChange={(e) => {
-                    setSelectedSentiment(e.target.value);
-                    setBulkMsg(null);
-                    setBulkError(null);
-                  }}
-                  disabled={isProcessing}
-                  className="filter-select"
-                >
-                  <option value="">All Sentiments</option>
-                  {sentiments.map(s => (
-                    <option key={s} value={s}>
-                      {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <button 
-                className="filter-btn refresh-btn" 
-                onClick={()=>{
-                  setBulkMsg(null);
-                  setBulkError(null);
-                  refreshAll(true);
-                }} 
-                disabled={loading || isProcessing}
-                title="Refresh data"
-              >
-                🔄
-              </button>
-
-              <button 
-                className="filter-btn clear-btn" 
-                onClick={()=>{
-                  setSelectedProduct('');
-                  setSelectedLanguage('');
-                  setSelectedSentiment('');
+      {stats && stats.total > 0 && (
+        <div>
+          <div className="filter-section">
+            <div className="filter-group">
+              <label htmlFor="product-filter">Product:</label>
+              <select
+                id="product-filter"
+                value={selectedProduct}
+                onChange={(e) => {
+                  setSelectedProduct(e.target.value);
+                  setPage(0);
                   setBulkMsg(null);
                   setBulkError(null);
                 }}
-                disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
-                title="Clear all filters"
+                disabled={isProcessing}
+                className="filter-select"
               >
-                ✖
-              </button>
+                <option value="">All Products</option>
+                {products.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
             </div>
+
+            <div className="filter-group">
+              <label htmlFor="language-filter">Language:</label>
+              <select
+                id="language-filter"
+                value={selectedLanguage}
+                onChange={(e) => {
+                  setSelectedLanguage(e.target.value);
+                  setPage(0);
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
+                disabled={isProcessing}
+                className="filter-select"
+              >
+                <option value="">All Languages</option>
+                {languages.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+
+            <div className="filter-group">
+              <label htmlFor="sentiment-filter">Sentiment:</label>
+              <select
+                id="sentiment-filter"
+                value={selectedSentiment}
+                onChange={(e) => {
+                  setSelectedSentiment(e.target.value);
+                  setPage(0);
+                  setBulkMsg(null);
+                  setBulkError(null);
+                }}
+                disabled={isProcessing}
+                className="filter-select"
+              >
+                <option value="">All Sentiments</option>
+                {sentiments.map(s => (
+                  <option key={s} value={s}>
+                    {s === 'positive' ? '😊 Positive' : s === 'negative' ? '😞 Negative' : '😐 Neutral'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              className="filter-btn refresh-btn"
+              onClick={() => {
+                setBulkMsg(null);
+                setBulkError(null);
+                refreshAll(false);
+              }}
+              disabled={loading || isProcessing}
+              title="Refresh data"
+            >
+              🔄
+            </button>
+
+            <button
+              className="filter-btn clear-btn"
+              onClick={() => {
+                setSelectedProduct('');
+                setSelectedLanguage('');
+                setSelectedSentiment('');
+                setBulkMsg(null);
+                setBulkError(null);
+              }}
+              disabled={isProcessing || (!selectedProduct && !selectedLanguage && !selectedSentiment)}
+              title="Clear all filters"
+            >
+              ✖
+            </button>
+          </div>
 
           {/* Sentiment Overview Section */}
           <div className="dashboard-section">
@@ -623,7 +562,7 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               </h3>
               <p className="section-subtitle">Quick snapshot of feedback sentiment distribution</p>
             </div>
-            
+
             <div className="stats-grid">
               <div className="stat-card stat-card-total">
                 <div className="stat-icon">📊</div>
@@ -649,30 +588,59 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
               </h3>
               <p className="section-subtitle">Visual breakdown of sentiment proportions</p>
             </div>
-            
+
             <div className="sentiment-chart">
-            <div className="pie-chart-container">
-              <svg viewBox="0 0 200 200" className="pie-chart">
-                {(() => {
-                  let cumulativePercent = 0
-                  const colors = {
-                    positive: '#10b981',
-                    neutral: '#f59e0b',
-                    negative: '#ef4444'
-                  }
-                  
-                  return sentimentTypes.map(sentiment => {
-                    const percentage = stats.percentages[sentiment] || 0
-                    if (percentage === 0) return null
-                    
-                    // Special case: if 100%, draw a full circle instead of an arc
-                    if (percentage >= 99.9) {
+              <div className="pie-chart-container">
+                <svg viewBox="0 0 200 200" className="pie-chart">
+                  {(() => {
+                    let cumulativePercent = 0
+                    const colors = {
+                      positive: '#10b981',
+                      neutral: '#f59e0b',
+                      negative: '#ef4444'
+                    }
+
+                    return sentimentTypes.map(sentiment => {
+                      const percentage = stats.percentages[sentiment] || 0
+                      if (percentage === 0) return null
+
+                      // Special case: if 100%, draw a full circle instead of an arc
+                      if (percentage >= 99.9) {
+                        return (
+                          <g key={sentiment}>
+                            <circle
+                              cx="100"
+                              cy="100"
+                              r="90"
+                              fill={colors[sentiment]}
+                              stroke="white"
+                              strokeWidth="2"
+                              className="pie-slice"
+                            />
+                          </g>
+                        )
+                      }
+
+                      const startAngle = (cumulativePercent / 100) * 360
+                      const endAngle = ((cumulativePercent + percentage) / 100) * 360
+                      cumulativePercent += percentage
+
+                      // Convert angles to radians
+                      const startRad = (startAngle - 90) * Math.PI / 180
+                      const endRad = (endAngle - 90) * Math.PI / 180
+
+                      // Calculate arc path
+                      const x1 = 100 + 90 * Math.cos(startRad)
+                      const y1 = 100 + 90 * Math.sin(startRad)
+                      const x2 = 100 + 90 * Math.cos(endRad)
+                      const y2 = 100 + 90 * Math.sin(endRad)
+
+                      const largeArcFlag = percentage > 50 ? 1 : 0
+
                       return (
                         <g key={sentiment}>
-                          <circle
-                            cx="100"
-                            cy="100"
-                            r="90"
+                          <path
+                            d={`M 100 100 L ${x1} ${y1} A 90 90 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
                             fill={colors[sentiment]}
                             stroke="white"
                             strokeWidth="2"
@@ -680,322 +648,297 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }){
                           />
                         </g>
                       )
-                    }
-                    
-                    const startAngle = (cumulativePercent / 100) * 360
-                    const endAngle = ((cumulativePercent + percentage) / 100) * 360
-                    cumulativePercent += percentage
-                    
-                    // Convert angles to radians
-                    const startRad = (startAngle - 90) * Math.PI / 180
-                    const endRad = (endAngle - 90) * Math.PI / 180
-                    
-                    // Calculate arc path
-                    const x1 = 100 + 90 * Math.cos(startRad)
-                    const y1 = 100 + 90 * Math.sin(startRad)
-                    const x2 = 100 + 90 * Math.cos(endRad)
-                    const y2 = 100 + 90 * Math.sin(endRad)
-                    
-                    const largeArcFlag = percentage > 50 ? 1 : 0
-                    
+                    })
+                  })()}
+                </svg>
+                <div className="pie-legend">
+                  {sentimentTypes.map(sentiment => {
+                    const count = stats.counts[sentiment] || 0
+                    const percentage = stats.percentages[sentiment] || 0
+                    if (count === 0) return null
                     return (
-                      <g key={sentiment}>
-                        <path
-                          d={`M 100 100 L ${x1} ${y1} A 90 90 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-                          fill={colors[sentiment]}
-                          stroke="white"
-                          strokeWidth="2"
-                          className="pie-slice"
-                        />
-                      </g>
+                      <div key={sentiment} className="legend-item">
+                        <div className={`legend-color legend-color-${sentiment}`}></div>
+                        <div className="legend-text">
+                          <span className="legend-emoji">{emojis[sentiment]}</span>
+                          <span className="legend-label">{sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}</span>
+                          <span className="legend-value">{Math.round(percentage)}% ({count})</span>
+                        </div>
+                      </div>
                     )
-                  })
-                })()}
-              </svg>
-              <div className="pie-legend">
-                {sentimentTypes.map(sentiment => {
-                  const count = stats.counts[sentiment] || 0
-                  const percentage = stats.percentages[sentiment] || 0
-                  if (count === 0) return null
-                  return (
-                    <div key={sentiment} className="legend-item">
-                      <div className={`legend-color legend-color-${sentiment}`}></div>
-                      <div className="legend-text">
-                        <span className="legend-emoji">{emojis[sentiment]}</span>
-                        <span className="legend-label">{sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}</span>
-                        <span className="legend-value">{Math.round(percentage)}% ({count})</span>
-                      </div>
-                    </div>
-                  )
-                })}
+                  })}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Recent Feedback Section */}
-          <div className="dashboard-section">
-            <div className="section-header">
-              <h3 className="section-title">
-                <span className="section-icon">💬</span>
-                Recent Feedback
-              </h3>
-              <p className="section-subtitle">Latest customer feedback entries</p>
-            </div>
-            
-            <div className="recent-feedback">
-            {feedbackPage.length === 0 && <div className="empty-feedback-message">No feedback on this page.</div>}
-            <ul style={{width:'100%'}}>
-              {feedbackPage.map(f => (
-                <li key={f.id} className={`feedback-item feedback-item-${f.sentiment || 'neutral'}`}>
-                  <div className="feedback-item-header">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(f.id)}
-                      onChange={()=>toggleId(f.id)}
-                      className="feedback-checkbox"
-                    />
-                    <span className={`sentiment-badge sentiment-badge-${f.sentiment || 'neutral'}`}>
-                      {emojis[f.sentiment] || '😐'}
-                    </span>
-                    <span className="language-tag">{f.language || 'unknown'}</span>
-                    <span className="product-tag">{f.product || '(unspecified)'}</span>
-                    {showTimestamp && (
-                      <span className="timestamp-tag" title={new Date(f.created_at).toLocaleString()}>
-                        🕒 {new Date(f.created_at).toLocaleDateString()} {new Date(f.created_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                      </span>
-                    )}
-                    <button
-                      className="icon-btn delete-btn"
-                      onClick={(e)=>{ 
-                        e.stopPropagation(); // Prevent checkbox selection
-                        setBulkError(null); 
-                        setBulkMsg(null);
-                        // Direct confirmation without selecting
-                        setConfirmDelete({
-                          type: 'single',
-                          count: 1,
-                          filter: `Feedback ID: ${f.id}`,
-                          onConfirm: async () => {
-                            try {
-                              setIsProcessing(true);
-                              const res = await fetchWithAuth(`/api/feedback/${f.id}`, { method: 'DELETE' });
-                              if (!res.ok) throw new Error('Failed to delete feedback');
-                              
-                              setBulkMsg('✅ Deleted 1 feedback entry.');
-                              setSelectedIds([]); // Clear selection state after any delete
-                              
-                              // If the last item on the page was deleted, reset filters and go to the first page.
-                              if (feedbackPage.length === 1) {
-                                setSelectedProduct(() => '');
-                                setSelectedLanguage(() => '');
-                                setSelectedSentiment(() => { setNeedsRefresh({ refresh: true, reset: true }); return ''; });
-                              } else {
-                                setNeedsRefresh({ refresh: true, reset: false });
-                              }
-                            } catch(e) {
-                              setBulkError(`⚠️ ${e.message}`);
-                            } finally {
-                              // Always close the modal and reset processing state
-                              setConfirmDelete(null);
-                              setIsProcessing(false);
-                            }
-                          },
-                          onCancel: () => { 
-                            setConfirmDelete(null);
-                            setIsProcessing(false);
-                          }
-                        });
-                      }}
-                      title="Delete this feedback"
-                      aria-label={`Delete feedback: ${f.original_text?.substring(0, 50)}...`}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                  <div className="feedback-item-body">
-                    {f.original_text ? (
-                      <>
-                        <p className="feedback-text">
-                          {showTranslated && f.translated_text ? f.translated_text : f.original_text}
-                        </p>
-                        {showTranslated && f.translated_text && (
-                          <p className="feedback-original">
-                            <span className="original-label">Original:</span> {f.original_text}
-                          </p>
+            {/* Recent Feedback Section */}
+            <div className="dashboard-section">
+              <div className="section-header">
+                <h3 className="section-title">
+                  <span className="section-icon">💬</span>
+                  Recent Feedback
+                </h3>
+                <p className="section-subtitle">Latest customer feedback entries</p>
+              </div>
+
+              <div className="recent-feedback">
+                {feedbackPage.length === 0 && <div className="empty-feedback-message">No feedback on this page.</div>}
+                <ul style={{ width: '100%' }}>
+                  {feedbackPage.map(f => (
+                    <li key={f.id} className={`feedback-item feedback-item-${f.sentiment || 'neutral'}`}>
+                      <div className="feedback-item-header">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(f.id)}
+                          onChange={() => toggleId(f.id)}
+                          className="feedback-checkbox"
+                        />
+                        <span className={`sentiment-badge sentiment-badge-${f.sentiment || 'neutral'}`}>
+                          {emojis[f.sentiment] || '😐'}
+                        </span>
+                        <span className="language-tag">{f.language || 'unknown'}</span>
+                        <span className="product-tag">{f.product || '(unspecified)'}</span>
+                        {showTimestamp && (
+                          <span className="timestamp-tag" title={new Date(f.created_at).toLocaleString()}>
+                            🕒 {new Date(f.created_at).toLocaleDateString()} {new Date(f.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         )}
-                      </>
-                    ) : (
-                      <div className="feedback-error">
-                        ⚠️ Feedback data missing <code>original_text</code>. Raw object:<br/>
-                        <pre>{JSON.stringify(f, null, 2)}</pre>
+                        <button
+                          className="icon-btn delete-btn"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent checkbox selection
+                            setBulkError(null);
+                            setBulkMsg(null);
+                            // Direct confirmation without selecting
+                            setConfirmDelete({
+                              type: 'single',
+                              count: 1,
+                              filter: `Feedback ID: ${f.id}`,
+                              onConfirm: async () => {
+                                try {
+                                  setIsProcessing(true);
+                                  const res = await fetchWithAuth(`/api/feedback/${f.id}`, { method: 'DELETE' });
+                                  if (!res.ok) throw new Error('Failed to delete feedback');
+
+                                  setBulkMsg('✅ Deleted 1 feedback entry.');
+                                  setSelectedIds([]); // Clear selection state after any delete
+
+                                  // If the last item on the page was deleted, reset filters and go to the first page.
+                                  if (feedbackPage.length === 1) {
+                                    refreshAll(true);
+                                  } else {
+                                    refreshAll(false);
+                                  }
+                                } catch (e) {
+                                  setBulkError(`⚠️ ${e.message}`);
+                                } finally {
+                                  // Always close the modal and reset processing state
+                                  setConfirmDelete(null);
+                                  setIsProcessing(false);
+                                }
+                              },
+                              onCancel: () => {
+                                setConfirmDelete(null);
+                                setIsProcessing(false);
+                              }
+                            });
+                          }}
+                          title="Delete this feedback"
+                          aria-label={`Delete feedback: ${f.original_text?.substring(0, 50)}...`}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      <div className="feedback-item-body">
+                        {f.original_text ? (
+                          <>
+                            <p className="feedback-text">
+                              {showTranslated && f.translated_text ? f.translated_text : f.original_text}
+                            </p>
+                            {showTranslated && f.translated_text && (
+                              <p className="feedback-original">
+                                <span className="original-label">Original:</span> {f.original_text}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <div className="feedback-error">
+                            ⚠️ Feedback data missing <code>original_text</code>. Raw object:<br />
+                            <pre>{JSON.stringify(f, null, 2)}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                <div id="bulk-actions-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 12, alignItems: 'center' }}>
+                  <button className="btn-tertiary" style={{ width: 'auto' }} onClick={toggleAll} disabled={isProcessing || feedbackPage.length === 0}>
+                    {selectedIds.length === feedbackPage.length && feedbackPage.length > 0 ? 'Unselect All' : 'Select All'}
+                  </button>
+                  <button
+                    className="btn-danger"
+                    style={{ width: 'auto' }}
+                    onClick={() => {
+                      // Catch cancellation to prevent unhandled promise rejection error in console
+                      deleteSelected().catch(() => { });
+                    }}
+                    disabled={isProcessing || selectedIds.length === 0}
+                  >Delete Selected ({selectedIds.length})</button>
+                  <button
+                    className="btn-danger"
+                    style={{ width: 'auto' }}
+                    onClick={deleteAllFiltered}
+                    disabled={isProcessing || totalFeedback === 0}
+                  >{selectedProduct || selectedLanguage || selectedSentiment
+                    ? `Delete All Filtered (${totalFeedback})`
+                    : `Delete All (${totalFeedback})`
+                    }</button>
+
+                  {/* View Options Dropdown */}
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <button
+                      ref={fieldsBtnRef}
+                      className="btn-secondary"
+                      style={{ width: 'auto' }}
+                      onClick={() => setShowFieldsMenu(s => !s)}
+                      disabled={isProcessing}
+                      title="Show/hide optional fields"
+                    >
+                      👁️ Show Fields {showFieldsMenu ? '▲' : '▼'}
+                    </button>
+
+                    {showFieldsMenu && (
+                      <div className="fields-dropdown-menu">
+                        <label
+                          className="field-checkbox-item"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const container = document.querySelector('.container')
+                            // Record button's current viewport position to preserve after toggle
+                            if (fieldsBtnRef.current) {
+                              lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
+                            }
+                            setShowTranslated(prev => !prev)
+                            setShowFieldsMenu(false)
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={showTranslated}
+                            onChange={() => { }}
+                            onClick={(e) => e.preventDefault()}
+                            tabIndex={-1}
+                          />
+                          <span>🌐 Translated Text</span>
+                        </label>
+                        <label
+                          className="field-checkbox-item"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const container = document.querySelector('.container')
+                            if (fieldsBtnRef.current) {
+                              lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
+                            }
+                            setShowTimestamp(prev => !prev)
+                            setShowFieldsMenu(false)
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={showTimestamp}
+                            onChange={() => { }}
+                            onClick={(e) => e.preventDefault()}
+                            tabIndex={-1}
+                          />
+                          <span>🕒 Timestamp</span>
+                        </label>
                       </div>
                     )}
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
 
-            <div id="bulk-actions-bar" style={{display:'flex', flexWrap:'wrap', gap:12, marginTop:12, alignItems:'center'}}>
-              <button className="btn-tertiary" style={{width:'auto'}} onClick={toggleAll} disabled={isProcessing || feedbackPage.length===0}>
-                {selectedIds.length === feedbackPage.length && feedbackPage.length>0 ? 'Unselect All' : 'Select All'}
-              </button>
-              <button
-                className="btn-danger"
-                style={{width:'auto'}}
-                onClick={deleteSelected}
-                disabled={isProcessing || selectedIds.length===0}
-              >Delete Selected ({selectedIds.length})</button>
-              <button
-                className="btn-danger"
-                style={{width:'auto'}}
-                onClick={deleteAllFiltered}
-                disabled={isProcessing || totalFeedback===0}
-              >{selectedProduct || selectedLanguage || selectedSentiment ? `Delete All Filtered (${totalFeedback})` : `Delete All (${totalFeedback})`}</button>
-              
-              {/* View Options Dropdown */}
-              <div style={{position: 'relative', display: 'inline-block'}}>
-                <button
-                  ref={fieldsBtnRef}
-                  className="btn-secondary"
-                  style={{width:'auto'}}
-                  onClick={()=>setShowFieldsMenu(s=>!s)}
-                  disabled={isProcessing}
-                  title="Show/hide optional fields"
-                >
-                  👁️ Show Fields {showFieldsMenu ? '▲' : '▼'}
-                </button>
-                
-                {showFieldsMenu && (
-                  <div className="fields-dropdown-menu">
-                    <label 
-                      className="field-checkbox-item"
-                      onClick={(e)=>{
-                        e.preventDefault()
-                        e.stopPropagation()
-                        const container = document.querySelector('.container')
-                        // Record button's current viewport position to preserve after toggle
-                        if (fieldsBtnRef.current) {
-                          lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
-                        }
-                        setShowTranslated(prev => !prev)
-                        setShowFieldsMenu(false)
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showTranslated}
-                        onChange={()=>{}}
-                        onClick={(e)=>e.preventDefault()}
-                        tabIndex={-1}
-                      />
-                      <span>🌐 Translated Text</span>
-                    </label>
-                    <label 
-                      className="field-checkbox-item"
-                      onClick={(e)=>{
-                        e.preventDefault()
-                        e.stopPropagation()
-                        const container = document.querySelector('.container')
-                        if (fieldsBtnRef.current) {
-                          lastBtnTopRef.current = fieldsBtnRef.current.getBoundingClientRect().top
-                        }
-                        setShowTimestamp(prev => !prev)
-                        setShowFieldsMenu(false)
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={showTimestamp}
-                        onChange={()=>{}}
-                        onClick={(e)=>e.preventDefault()}
-                        tabIndex={-1}
-                      />
-                      <span>🕒 Timestamp</span>
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {confirmDelete && createPortal(
-              <div 
-                className="confirm-modal-overlay"
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    if (confirmDelete.onCancel) {
-                      confirmDelete.onCancel();
-                    } else {
-                      setConfirmDelete(null);
-                    }
-                  }
-                }}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="confirm-delete-title"
-              >
-                <div className="confirm-modal">
-                  <h3 id="confirm-delete-title">Confirm Delete</h3>
-                  <div className="confirm-modal-message">
-                    {confirmDelete.type === 'selected'
-                      ? `Are you sure you want to delete ${confirmDelete.count} selected review(s)?`
-                      : `Are you sure you want to delete ALL (${confirmDelete.count}) reviews matching the current filter?`}
-                  </div>
-                  <div className="confirm-modal-filter">Current filter: {confirmDelete.filter}</div>
-                  <div className="confirm-modal-actions">
-                    <button className="btn-danger" onClick={confirmDelete.onConfirm}>Confirm</button>
-                    <button 
-                      className="btn-secondary" 
-                      onClick={() => {
+                {confirmDelete && createPortal(
+                  <div
+                    className="confirm-modal-overlay"
+                    onClick={(e) => {
+                      if (e.target === e.currentTarget) {
                         if (confirmDelete.onCancel) {
                           confirmDelete.onCancel();
                         } else {
                           setConfirmDelete(null);
                         }
-                      }}
-                    >Cancel</button>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )}
+                      }
+                    }}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="confirm-delete-title"
+                  >
+                    <div className="confirm-modal">
+                      <h3 id="confirm-delete-title">Confirm Delete</h3>
+                      <div className="confirm-modal-message">
+                        {confirmDelete.type === 'selected'
+                          ? `Are you sure you want to delete ${confirmDelete.count} selected review(s)?`
+                          : `Are you sure you want to delete ALL (${confirmDelete.count}) reviews matching the current filter?`}
+                      </div>
+                      <div className="confirm-modal-filter">Current filter: {confirmDelete.filter}</div>
+                      <div className="confirm-modal-actions">
+                        <button className="btn-danger" onClick={confirmDelete.onConfirm}>Confirm</button>
+                        <button
+                          className="btn-secondary"
+                          onClick={() => {
+                            if (confirmDelete.onCancel) {
+                              confirmDelete.onCancel();
+                            } else {
+                              setConfirmDelete(null);
+                            }
+                          }}
+                        >Cancel</button>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body
+                )}
 
-            <div className="pagination-controls" role="navigation" aria-label="Feedback pagination" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap'}}>
-              <div style={{display:'flex', alignItems:'center', gap:8}}>
-                <label htmlFor="page-size" style={{whiteSpace:'nowrap', fontSize: '14px', margin: 0}}>Per page:</label>
-                <select
-                  id="page-size"
-                  className="page-size-select"
-                  value={pageSize}
-                  onChange={(e)=> {
-                    const v = parseInt(e.target.value, 10);
-                    if (!Number.isNaN(v)) setPageSize(v)
-                  }}
-                  aria-label="Items per page"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                </select>
+                <div className="pagination-controls" role="navigation" aria-label="Feedback pagination" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label htmlFor="page-size" style={{ whiteSpace: 'nowrap', fontSize: '14px', margin: 0 }}>Per page:</label>
+                    <select
+                      id="page-size"
+                      className="page-size-select"
+                      value={pageSize}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(v)) setPageSize(v)
+                      }}
+                      aria-label="Items per page"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                  <span aria-live="polite" aria-atomic="true">Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
+                  <button
+                    onClick={() => loadFeedbackPage(Math.max(0, page - 1))}
+                    disabled={isProcessing || page <= 0}
+                    aria-label="Go to previous page"
+                    className="btn-secondary"
+                    style={{ width: 'auto' }}
+                  >Prev</button>
+                  <button
+                    onClick={() => loadFeedbackPage(page + 1)}
+                    disabled={isProcessing || (page + 1) * pageSize >= totalFeedback}
+                    aria-label="Go to next page"
+                    className="btn-secondary"
+                    style={{ width: 'auto' }}
+                  >Next</button>
+                </div>
               </div>
-              <span aria-live="polite" aria-atomic="true">Page {totalPages === 0 ? 0 : (page + 1)} of {totalPages}</span>
-              <button 
-                onClick={()=> loadFeedbackPage(Math.max(0, page-1))} 
-                disabled={isProcessing || page<=0}
-                aria-label="Go to previous page"
-                className="btn-secondary"
-                style={{width: 'auto'}}
-              >Prev</button>
-              <button 
-                onClick={()=> loadFeedbackPage(page+1)} 
-                disabled={isProcessing || (page+1)*pageSize >= totalFeedback}
-                aria-label="Go to next page"
-                className="btn-secondary"
-                style={{width: 'auto'}}
-              >Next</button>
             </div>
-          </div>
-          </div>
           </div>
         </div>
       )}

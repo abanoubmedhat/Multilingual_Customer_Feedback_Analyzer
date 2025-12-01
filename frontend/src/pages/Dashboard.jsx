@@ -168,22 +168,27 @@ export default function Dashboard({ token, setBulkMsg, setBulkError }) {
       const maxScroll = container.scrollHeight - container.clientHeight
       const proposed = container.scrollTop + diff
       container.scrollTop = Math.min(Math.max(0, proposed), maxScroll)
-      // Handle Escape key to close modal
-      const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-          if (confirmDelete.onCancel) {
-            confirmDelete.onCancel();
-          } else {
-            setConfirmDelete(null);
-          }
+    }
+    lastBtnTopRef.current = null
+  }, [showTranslated, showTimestamp])
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!confirmDelete) return
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        if (confirmDelete.onCancel) {
+          confirmDelete.onCancel();
+        } else {
+          setConfirmDelete(null);
         }
       }
-      document.addEventListener('keydown', handleEscape)
+    }
+    document.addEventListener('keydown', handleEscape)
 
-      return () => {
-        document.body.style.overflow = ''
-        document.removeEventListener('keydown', handleEscape)
-      }
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
     }
   }, [confirmDelete])
 
